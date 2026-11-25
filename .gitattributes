@@ -1,0 +1,8 @@
+# 윈도우에서도 줄바꿈을 LF로 둔다 (CRLF로 바뀌면 diff가 통째로 바뀐 것처럼 보인다)
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary
+*.ogg binary
+*.mp3 binary
+*.wasm binary
