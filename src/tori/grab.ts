@@ -18,6 +18,8 @@ export interface Grabbable {
 interface Hold {
   target: Grabbable;
   joint: RAPIER.RevoluteImpulseJoint;
+  /** 가지에 걸린 동안 꼬리가 늘어나지 않게 엉덩이와 끝 사이를 묶는 줄(known-issues 1번) */
+  rope: RAPIER.ImpulseJoint | null;
   /** 잡은 순간 꼬리 끝이 있던 자리와, 끝이 붙을 자리(둘 다 대상 안의 점) */
   from: Point;
   to: Point;
@@ -105,13 +107,15 @@ export class TailGrab {
       collider.setCollisionGroups(collisionGroups('Held'));
       this.releasing.delete(target);
     }
-    this.hold = { target, joint, from, to, progress: 0 };
+    const rope = fixed ? this.world.createImpulseJoint(tail.ropeData(), tail.root, tail.tipLink.body, true) : null;
+    this.hold = { target, joint, rope, from, to, progress: 0 };
     this.near = null;
   }
 
   private release(): void {
     if (!this.hold) return;
     this.world.removeImpulseJoint(this.hold.joint, true);
+    if (this.hold.rope) this.world.removeImpulseJoint(this.hold.rope, true);
     if (!this.hold.target.fixed) this.releasing.add(this.hold.target);
     this.hold = null;
   }

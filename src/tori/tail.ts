@@ -77,6 +77,16 @@ export class Tail {
     return { x: 0, y: -this.config.tail.linkLength / 2 };
   }
 
+  /** 밑동이 붙은 바디 */
+  get root(): RAPIER.RigidBody {
+    return this.torso;
+  }
+
+  /** 엉덩이와 꼬리 끝 사이를 꼬리 길이로 묶는 관절. 걸린 동안에는 돌아서지 않으므로 앵커가 바뀌지 않는다. */
+  ropeData(): RAPIER.JointData {
+    return RAPIER.JointData.rope(this.length, this.links[0].joint.anchor1(), this.tipAnchor);
+  }
+
   /** 밑동이 붙은 자리 */
   hip(turn: number): Point {
     return toWorld(this.torso, this.hipAnchor(turn));

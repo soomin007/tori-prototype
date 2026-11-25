@@ -188,8 +188,8 @@ export const DEFAULTS: GameConfig = {
     bufferSeconds: 0.1, // PLAN 7.2
   },
   upright: {
-    strength: 60, // N·m/rad. M1의 40에서 꼬리가 붙은 만큼 올렸다
-    damping: 5, // N·m·s/rad. 위와 같은 이유로 2.5에서 올렸다
+    strength: 75, // N·m/rad. M1의 40에서 꼬리가 붙은 만큼 올렸다
+    damping: 6.5, // N·m·s/rad. 위와 같은 이유로 2.5에서 올렸다
     airFactor: 0.4, // 공중에서 세기와 감쇠에 곱한다
     slopeFollow: 0.7, // 0이면 늘 수평, 1이면 경사와 나란히 선다
     slopeSmoothSeconds: 0.08, // 계단에서 경사 값이 튀는 것을 고른다
@@ -238,21 +238,21 @@ export const DEFAULTS: GameConfig = {
     linksPerSection: 3, // PLAN 7.3
     linkLength: 0.125, // 12마디면 꼬리 전체가 1.5m(PLAN 7.3)
     linkMass: 0.07, // kg. 몸통 3kg과 43:1. 60:1을 넘기지 않는다(known-issues 1번). 0.1이면 휘두를 때 몸이 50도까지 기운다
-    armature: 0.015, // kg·m². 마디마다 더하는 회전 관성. 0이면 가벼운 마디들의 모터가 풀리지 않아 꼬리가 구겨진다(known-issues 11번)
+    armature: 0.02, // kg·m². 마디마다 더하는 회전 관성. 0이면 가벼운 마디들의 모터가 풀리지 않아 꼬리가 구겨진다(known-issues 11번)
     baseThickness: 0.2,
-    tipThickness: 0.09,
-    hipX: 0.42, // 몸통 중심에서 밑동까지 뒤쪽 거리. 0이면 밑동이 가운데라 돌아설 때 옮기지 않는다(PLAN 7.2의 나)
+    tipThickness: 0.08,
+    hipX: 0.36, // 몸통 중심에서 밑동까지 뒤쪽 거리. 0이면 밑동이 가운데라 돌아설 때 옮기지 않는다(PLAN 7.2의 나)
     hipY: 0.04, // 몸통 중심보다 이만큼 위에 붙는다
     jointLimitDeg: 35, // PLAN 7.3
     rootUpDeg: 160, // 밑동이 뒤쪽 수평에서 위로(등 너머로) 도는 한계
     rootDownDeg: 60, // 밑동이 뒤쪽 수평에서 아래로 도는 한계
-    stiffness: 70, // N·m/rad. 밑동 관절의 모터 강성. 끝으로 갈수록 tipRatio까지 줄어든다
-    dampingSeconds: 0.12, // 감쇠를 강성으로 나눈 값. 크면 천천히 따라온다
-    maxTorque: 26, // N·m. 밑동 관절의 힘 상한. 작으면 끝이 늦게 따라오고 무거운 것을 들면 처진다
+    stiffness: 300, // N·m/rad. 밑동 관절의 모터 강성. 끝으로 갈수록 tipRatio까지 줄어든다. 70이면 목표를 1m 넘게 지나쳤다 돌아온다
+    dampingSeconds: 0.2, // 감쇠를 강성으로 나눈 값. 크면 천천히 따라온다
+    maxTorque: 50, // N·m. 밑동 관절의 힘 상한. 작으면 끝이 늦게 따라오고 무거운 것을 들면 처진다
     tipRatio: 0.12, // 끝 관절의 강성과 힘 상한이 밑동의 몇 배인지
     gravityComp: 0.8, // 꼬리 무게로 처지는 만큼을 목표 각에 미리 더하는 비율
     support: 0.9, // 꼬리 때문에 옮겨 간 무게중심을 다리가 받쳐 주는 비율. 1이면 가만히 있을 때 기울지 않는다
-    brace: 0.75, // 발이 바닥에 있을 때 다리가 꼬리의 반동을 버티는 비율. 0이면 반동이 모두 몸에 실린다
+    brace: 0.65, // 발이 바닥에 있을 때 다리가 꼬리의 반동을 버티는 비율. 0이면 반동이 모두 몸에 실린다
     friction: 0.5,
     softCcd: 0.3, // 빠른 마디가 얇은 물건을 지나치지 않게 미리 살피는 거리
   },
@@ -263,7 +263,7 @@ export const DEFAULTS: GameConfig = {
     pullStiffness: 60, // N/m
     pullDamping: 6, // N·s/m
     pullMaxForce: 25, // N. 반작용은 엉덩이에 되돌린다
-    pullMotor: 0.3, // 끝만 당길 때 꼬리를 펴는 모터의 세기 배율. 너무 작으면 꼬리가 말려 엉킨다
+    pullMotor: 0.07, // 끝만 당길 때 꼬리를 펴는 모터의 세기 배율. 너무 작으면 꼬리가 말려 엉킨다
   },
   auto: {
     idleRaiseDeg: 18, // 평소 밑동을 뒤쪽 수평에서 드는 각
@@ -276,9 +276,9 @@ export const DEFAULTS: GameConfig = {
     recoverSeconds: 0.3, // 평소 자세로 돌아오는 시간
     windRaiseDeg: 25, // 젖힐 때 밑동 각
     windCurlDeg: -10, // 젖힐 때 관절마다 말리는 각(음수면 뒤로)
-    strikeRaiseDeg: 155, // 칠 때 밑동 각. 머리 위를 넘어 앞쪽까지(PLAN 7.3)
-    strikeCurlDeg: 4, // 칠 때 관절마다 말리는 각(양수면 앞으로)
-    strikePower: 2.2, // 칠 때 모터 세기 배율
+    strikeRaiseDeg: 160, // 칠 때 밑동 각. 머리 위를 넘어 앞쪽까지(PLAN 7.3)
+    strikeCurlDeg: 6, // 칠 때 관절마다 말리는 각(양수면 앞으로)
+    strikePower: 1.2, // 칠 때 모터 세기 배율
     reachFactor: 2, // 꼬리 길이의 몇 배 안에 있는 것을 잡으러 가는지
     carryBack: 0.1, // 들고 있을 때 꼬리 끝이 몸통 중심보다 뒤로 간 거리
     carryUp: 0.7, // 들고 있을 때 꼬리 끝이 몸통 중심보다 위로 간 거리(등 위 0.5m, PLAN 7.3)
@@ -396,9 +396,9 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'tail.jointLimitDeg': { label: '마디 꺾임 한계 (도)', min: 5, max: 80, step: 1 },
   'tail.rootUpDeg': { label: '밑동 위로 한계 (도)', min: 30, max: 165, step: 1 },
   'tail.rootDownDeg': { label: '밑동 아래로 한계 (도)', min: 0, max: 80, step: 1 },
-  'tail.stiffness': { label: '모터 강성 (N·m/rad)', min: 0, max: 300, step: 1 },
+  'tail.stiffness': { label: '모터 강성 (N·m/rad)', min: 10, max: 900, step: 1 },
   'tail.dampingSeconds': { label: '모터 감쇠 (초)', min: 0.02, max: 0.5, step: 0.01 },
-  'tail.maxTorque': { label: '힘 상한 (N·m)', min: 1, max: 80, step: 0.5 },
+  'tail.maxTorque': { label: '힘 상한 (N·m)', min: 1, max: 120, step: 0.5 },
   'tail.tipRatio': { label: '끝 관절 세기 비율', min: 0.02, max: 1, step: 0.01 },
   'tail.gravityComp': { label: '처짐 보정', min: 0, max: 1, step: 0.05 },
   'tail.support': { label: '꼬리 무게 받치기', min: 0, max: 1, step: 0.05 },
