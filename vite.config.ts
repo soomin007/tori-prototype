@@ -25,5 +25,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    // 배포하는 컴퓨터는 이 PC보다 두 배쯤 느리다(known-issues 16번)
+    testTimeout: 30_000,
   },
 });
