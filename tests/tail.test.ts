@@ -364,6 +364,35 @@ describe('B 방식 (자동)', () => {
   });
 });
 
+describe('B 방식의 잡을 대상', () => {
+  it('물건이 더 가까이 있어도 뛰어오르면 가지를 노려 건다', () => {
+    const item = { ...box(29.2, -0.09, 0.18, 0), grabbable: true };
+    const roomData = { ...room(FLOOR, [item], [branchAt(32.2, -2.5)]), spawn: { x: 30, y: -0.5 } };
+    const run = new Run('B', { roomData });
+    run.input.moveX = 1;
+    run.input.pressed.jump = true;
+    run.seconds(0.15);
+    run.input.held.grab = true;
+    run.seconds(0.6);
+    run.input.moveX = 0;
+    run.seconds(0.5);
+    expect(run.sim.tori.grab.hooked).toBe(true);
+  });
+
+  it('누른 채 걸어가면 뒤에 남은 물건을 놓고 앞에 있는 것을 노린다', () => {
+    const behind = { ...box(28, -1.5, 0.18, 0), grabbable: true };
+    const ahead = { ...box(34, -0.09, 0.18, 0), grabbable: true };
+    const post = ground(27.8, 28.2, 1.4);
+    const run = new Run('B', { roomData: { ...FLAT, terrain: [...FLOOR, post], boxes: [behind, ahead] } });
+    run.sim.tori.canGrab = false;
+    run.input.held.grab = true;
+    run.input.moveX = 1;
+    run.seconds(1);
+    const target = run.sim.controller.target as Point;
+    expect(target.x).toBeGreaterThan(run.center.x);
+  });
+});
+
 describe('돌아서기', () => {
   for (const scheme of ['A', 'B'] as const) {
     for (const hipX of [DEFAULTS.tail.hipX, 0]) {

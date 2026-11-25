@@ -13,7 +13,7 @@ export class AutoTail implements TailController {
   private time = 0;
   /** 휘두르기를 시작한 뒤 지난 시간. 휘두르지 않으면 null이다. */
   private swing: number | null = null;
-  /** 잡으러 가는 대상. 키를 누르고 있는 동안 바꾸지 않는다. */
+  /** 잡으러 가는 대상 */
   private chosen: Grabbable | null = null;
 
   update(input: InputState, context: TailContext): TailCommand {
@@ -84,26 +84,30 @@ export class AutoTail implements TailController {
 
   // ---- 잡기 ----
 
-  /** 밑동에서 가장 가까운 잡을 수 있는 것 */
+  /**
+   * 밑동에서 가장 가까운 잡을 수 있는 것. 등진 쪽은 더 먼 것으로 치고, 공중에서는 가지를 먼저 고른다.
+   * 노리던 것은 다른 것이 뚜렷이 더 가까울 때만 바꾼다.
+   */
   private choose({ tori, config, grabbables }: TailContext): Grabbable | null {
-    const hip = tori.tail.hip(tori.turn);
-    const reach = tori.tail.length * config.auto.reachFactor;
-    const distanceTo = (target: Grabbable): number => {
-      const { x, y } = TailGrab.closestPoint(target, hip);
-      return Math.hypot(x - hip.x, y - hip.y);
-    };
     if (tori.grab.holding) return tori.grab.holding;
-    if (this.chosen && distanceTo(this.chosen) <= reach) return this.chosen;
-    let best: Grabbable | null = null;
-    let bestDistance = reach;
-    for (const target of grabbables) {
-      const distance = distanceTo(target);
-      if (distance <= bestDistance) {
-        best = target;
-        bestDistance = distance;
-      }
-    }
-    return best;
+    const { reachFactor, behindPenalty, switchMargin } = config.auto;
+    const hip = tori.tail.hip(tori.turn);
+    const center = tori.torso.translation();
+    const reach = tori.tail.length * reachFactor;
+    const ahead = (target: Grabbable): boolean => (target.body.translation().x - center.x) * tori.facing >= 0;
+
+    const inReach = grabbables
+      .map((target) => {
+        const { x, y } = TailGrab.closestPoint(target, hip);
+        const distance = Math.hypot(x - hip.x, y - hip.y);
+        const penalty = ahead(target) ? 0 : behindPenalty;
+        return { target, distance, score: distance + penalty - (target === this.chosen ? switchMargin : 0) };
+      })
+      .filter(({ distance }) => distance <= reach);
+    const branches = tori.grounded ? [] : inReach.filter(({ target }) => target.fixed);
+    const candidates = branches.length > 0 ? branches : inReach;
+    if (candidates.length === 0) return null;
+    return candidates.reduce((best, next) => (next.score < best.score ? next : best)).target;
   }
 
   /** 들고 있을 때 꼬리 끝을 둘 자리(몸통 위) */

@@ -132,6 +132,8 @@ export interface GameConfig {
     strikeCurlDeg: number;
     strikePower: number;
     reachFactor: number;
+    behindPenalty: number;
+    switchMargin: number;
     carryBack: number;
     carryUp: number;
   };
@@ -294,11 +296,13 @@ export const DEFAULTS: GameConfig = {
     strikeCurlDeg: 6, // 칠 때 관절마다 말리는 각(양수면 앞으로)
     strikePower: 1.2, // 칠 때 모터 세기 배율
     reachFactor: 2, // 꼬리 길이의 몇 배 안에 있는 것을 잡으러 가는지
+    behindPenalty: 0.8, // 등진 쪽에 있는 것은 이만큼 더 먼 것으로 친다
+    switchMargin: 0.3, // 노리던 것보다 이만큼 더 가까워야 바꾼다
     carryBack: 0.1, // 들고 있을 때 꼬리 끝이 몸통 중심보다 뒤로 간 거리
     carryUp: 0.7, // 들고 있을 때 꼬리 끝이 몸통 중심보다 위로 간 거리(등 위 0.5m, PLAN 7.3)
   },
   grab: {
-    radius: 0.22, // 꼬리 끝에서 이 안에 있으면 잡힌다
+    radius: 0.28, // 꼬리 끝에서 이 안에 있으면 잡힌다
     snapSeconds: 0.12, // 잡은 자리까지 끝이 붙는 시간
     hangMotor: 0.15, // 가지에 걸린 동안 모터 세기 배율
     swingAccel: 5, // m/s². 매달려서 이동 키를 누를 때
@@ -447,6 +451,8 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'auto.strikeCurlDeg': { label: '칠 때 말림 (도)', min: -30, max: 30, step: 0.5 },
   'auto.strikePower': { label: '칠 때 세기 배율', min: 0.5, max: 5, step: 0.1 },
   'auto.reachFactor': { label: '잡으러 가는 거리 배율', min: 0.5, max: 3, step: 0.05 },
+  'auto.behindPenalty': { label: '등진 쪽 거리 더하기 (m)', min: 0, max: 3, step: 0.05 },
+  'auto.switchMargin': { label: '대상 바꾸기 여유 (m)', min: 0, max: 2, step: 0.05 },
   'auto.carryBack': { label: '들 때 뒤쪽 거리 (m)', min: -1, max: 1.5, step: 0.05 },
   'auto.carryUp': { label: '들 때 높이 (m)', min: 0, max: 1.5, step: 0.05 },
   'grab.radius': { label: '잡히는 거리 (m)', min: 0.05, max: 0.6, step: 0.01 },
