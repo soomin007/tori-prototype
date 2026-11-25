@@ -33,3 +33,16 @@
 - 증상: `tsc --noEmit`이 우리 코드가 아니라 `node_modules/phaser/types/phaser.d.ts`와 `node_modules/@dimforge/rapier2d-compat/dist/rapier_wasm2d.d.ts`에서 실패한다(합쳐서 40건).
 - 원인: Phaser의 타입 파일에 TypeScript 7.0.2가 받아들이지 않는 선언이 2건 있고, Rapier의 타입 파일은 `lib`이 ES2022면 `Symbol.dispose`를 찾지 못한다.
 - 규칙: `tsconfig.json`에 `"skipLibCheck": true`를 넣는다. 이 설정에서 `import * as Phaser from 'phaser'`와 `import Phaser from 'phaser'`는 둘 다 통과한다.
+
+## 6. 튜닝 패널에서 중력을 바꿔도 멈춰 있던 물체가 반응하지 않는다 (잠든 바디는 스스로 깨지 않는다)
+
+- 증상: 떨어져 멈춘 상자가 중력을 바꿔도 그대로 있다. 움직이던 물체만 새 값을 따른다.
+- 원인: Rapier는 오래 멈춘 바디를 재운다. 월드의 중력이나 솔버 반복 횟수를 바꾸는 것은 바디를 깨우는 일이 아니다.
+- 규칙: 실행 중에 설정을 반영하는 자리(`PhysicsWorld.applyConfig`)에서 모든 바디에 `wakeUp()`을 부른다. `tests/physics.test.ts`가 지킨다.
+
+## 7. 브라우저 도구로 확인할 때 화면이 멈춰 있다 (뒤에 있는 탭은 requestAnimationFrame이 돌지 않는다)
+
+- 증상: 페이지는 열렸는데 씬이 시작되지 않거나(`window.tori`가 없음) 스텝 수가 거의 늘지 않는다. 콘솔 오류는 없다.
+- 원인: 앞에 있지 않은 탭은 `requestAnimationFrame`이 0번 불린다. Phaser는 이것으로 돌기 때문에 시작도 하지 않는다.
+  `document.visibilityState`는 이때도 `visible`이라 구분에 쓸 수 없다. 켜 둔 개발 서버 밑에서 `node_modules`를 지워도 비슷하게 멈춘다.
+- 규칙: 코드를 의심하기 전에 탭을 앞으로 옮기고(`tabs_select`) `requestAnimationFrame` 횟수를 센다. `npm ci`는 개발 서버를 끄고 돌린다.
