@@ -9,18 +9,30 @@ export interface SystemCommands {
   togglePanel(): void;
   toggleHelp(): void;
   restartRoom(): void;
+  togglePause(): void;
+  pause(): void;
+  goToRoom(room: number): void;
+  toStart(): void;
 }
 
+type SimpleCommand = Exclude<keyof SystemCommands, 'goToRoom'>;
+
 /** 기능 키는 브라우저 기본 동작(F1 도움말, F3 찾기)을 막는다 */
-const FUNCTION_KEYS: Record<string, keyof SystemCommands> = {
+const FUNCTION_KEYS: Record<string, SimpleCommand> = {
   F1: 'toggleDebug',
   F2: 'togglePanel',
   F3: 'toggleHelp',
 };
 
-const LETTER_COMMANDS: Record<string, keyof SystemCommands> = {
+const LETTER_COMMANDS: Record<string, SimpleCommand> = {
   KeyR: 'restartRoom',
+  Escape: 'togglePause',
 };
+
+const ROOM_KEYS: Record<string, number> = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4 };
+
+/** 브라우저가 Esc로 포인터 잠금을 풀면서 Esc 키도 보낼 수 있어, 이 시간 안의 Esc는 버린다(ms) */
+const UNLOCK_ESCAPE_MS = 300;
 
 /** 키 위치(KeyboardEvent.code) → 동작. 글자로 받으면 한글 입력 상태에서 달라질 수 있다. */
 const ACTION_KEYS: Record<string, Action> = {
@@ -29,8 +41,7 @@ const ACTION_KEYS: Record<string, Action> = {
   KeyQ: 'cutTail',
   KeyJ: 'attack',
   KeyK: 'grab',
-  // 마우스 왼쪽 단추. 조작 방식에 따라 무엇을 쓸지는 M2의 꼬리 컨트롤러가 고른다.
-  Mouse0: 'grab',
+  Mouse0: 'pointerGrab',
 };
 
 const LEFT_KEYS = ['KeyA', 'ArrowLeft'];
@@ -45,10 +56,14 @@ export class InputReader {
   private readonly listeners = new AbortController();
   private readonly canvas: HTMLCanvasElement;
   private readonly commands: SystemCommands;
+  private readonly wantsLock: () => boolean;
+  private unlockedAt = -Infinity;
 
-  constructor(canvas: HTMLCanvasElement, commands: SystemCommands) {
+  /** wantsLock은 지금 포인터를 잠가야 하는지(상대 커서)를 알려 준다 */
+  constructor(canvas: HTMLCanvasElement, commands: SystemCommands, wantsLock: () => boolean) {
     this.canvas = canvas;
     this.commands = commands;
+    this.wantsLock = wantsLock;
 
     const { signal } = this.listeners;
     // 튜닝 패널(lil-gui)이 키 이벤트를 안에서 멈추므로 먼저 받는다(capture)
@@ -59,6 +74,7 @@ export class InputReader {
     window.addEventListener('mousemove', (e) => this.onMouseMove(e), { signal });
     window.addEventListener('mouseup', (e) => this.release(`Mouse${e.button}`), { signal });
     canvas.addEventListener('mousedown', (e) => this.onMouseDown(e), { signal });
+    document.addEventListener('pointerlockchange', () => this.onLockChange(), { signal });
 
     // 단추나 패널을 마우스로 누른 뒤 초점이 남으면 Space가 그것을 다시 누른다
     document.addEventListener('click', (e) => e.detail > 0 && blurFocused('button, input[type="checkbox"]'), { signal });
@@ -67,6 +83,7 @@ export class InputReader {
 
   /** 프레임마다 시뮬레이션보다 먼저 부른다 */
   poll(camera: Phaser.Cameras.Scene2D.Camera): void {
+    if (this.locked && !this.wantsLock()) document.exitPointerLock();
     const isDown = (code: string): boolean => this.down.has(code);
     this.state.moveX = Number(RIGHT_KEYS.some(isDown)) - Number(LEFT_KEYS.some(isDown));
 
@@ -81,6 +98,18 @@ export class InputReader {
 
   dispose(): void {
     this.listeners.abort();
+    if (this.locked) document.exitPointerLock();
+  }
+
+  private get locked(): boolean {
+    return document.pointerLockElement === this.canvas;
+  }
+
+  /** 잠금이 풀린 것을 일시정지 신호로 삼는다. 상대 커서를 꺼서 우리가 푼 것이면 멈추지 않는다. */
+  private onLockChange(): void {
+    if (this.locked) return;
+    this.unlockedAt = performance.now();
+    if (this.wantsLock()) this.commands.pause();
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -98,8 +127,15 @@ export class InputReader {
     if (target?.closest('input, textarea, select')) return;
     if (event.code === 'Space' && target?.closest('button')) return;
 
+    const room = ROOM_KEYS[event.code];
+    if (room) {
+      if (!event.repeat) this.commands.goToRoom(room);
+      return;
+    }
+
     const letterCommand = LETTER_COMMANDS[event.code];
     if (letterCommand) {
+      if (event.code === 'Escape' && performance.now() - this.unlockedAt < UNLOCK_ESCAPE_MS) return;
       if (!event.repeat) this.commands[letterCommand]();
       return;
     }
@@ -112,12 +148,22 @@ export class InputReader {
   private onMouseMove(event: MouseEvent): void {
     this.client.x = event.clientX;
     this.client.y = event.clientY;
+    this.state.pointerActive = true;
+    if (!this.locked) return;
+    const scale = this.canvas.width / this.canvas.getBoundingClientRect().width;
+    this.state.pointerDelta.x += toMeters(event.movementX * scale);
+    this.state.pointerDelta.y += toMeters(event.movementY * scale);
   }
 
   private onMouseDown(event: MouseEvent): void {
     // Phaser가 mousedown의 기본 동작을 막아서, 패널 입력 칸의 초점이 저절로 풀리지 않는다
     blurFocused('input, textarea, select, button');
     this.onMouseMove(event);
+    if (this.wantsLock() && !this.locked) {
+      // 이 클릭은 포인터를 잠그는 데 쓴다. 브라우저가 막으면 다음 클릭에서 다시 시도한다.
+      void Promise.resolve(this.canvas.requestPointerLock()).catch(() => undefined);
+      return;
+    }
     this.press(`Mouse${event.button}`);
   }
 

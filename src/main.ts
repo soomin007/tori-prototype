@@ -4,9 +4,11 @@ import { parseShare } from './config/share';
 import { initPhysics } from './physics/world';
 import { BootScene } from './scenes/BootScene';
 import { RoomScene } from './scenes/RoomScene';
+import { StartScene } from './scenes/StartScene';
 
 async function start(): Promise<void> {
   await initPhysics();
+  const session = parseShare(location.search);
   new Phaser.Game({
     type: Phaser.WEBGL,
     backgroundColor: '#20262d',
@@ -24,7 +26,7 @@ async function start(): Promise<void> {
     // 소리는 발표용 스테이지에서 넣는다
     audio: { noAudio: true },
     banner: false,
-    scene: [new BootScene(), new RoomScene(parseShare(location.search))],
+    scene: [new BootScene(), new StartScene(session), new RoomScene(session)],
   });
 }
 

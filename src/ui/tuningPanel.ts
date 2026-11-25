@@ -61,6 +61,10 @@ export class TuningPanel {
     this.gui.show(!this.visible);
   }
 
+  destroy(): void {
+    this.gui.destroy();
+  }
+
   setFps(fps: number): void {
     this.stats.fps = fps;
   }

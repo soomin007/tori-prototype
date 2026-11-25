@@ -3,12 +3,17 @@ import { PPM } from '../config/defaults';
 import type { GameConfig } from '../config/defaults';
 import { toPx } from '../physics/world';
 import type { Pose } from '../physics/world';
+import { sectionThickness } from '../tori/tail';
 
 /**
  * 부위별 그림 자리. src/assets/parts/에 키와 같은 이름의 PNG(예: torso.png)가 있으면 그 그림을 쓰고, 없으면 도형으로 그린다.
- * 그림은 전부 오른쪽을 보는 모습이고, 다리는 곧게 아래로 뻗은 모습이다. 픽셀 크기와 기준점은 docs/art-spec.md에 있다.
+ * 그림은 전부 오른쪽을 보는 모습이고, 다리는 곧게 아래로, 꼬리 마디는 왼쪽으로 뻗은 모습이다.
+ * 픽셀 크기와 기준점은 docs/art-spec.md에 있다.
  */
-export type PartKey = 'torso' | 'head' | 'leg-front-upper' | 'leg-front-lower' | 'leg-hind-upper' | 'leg-hind-lower';
+export type BodyPartKey = 'torso' | 'head' | 'leg-front-upper' | 'leg-front-lower' | 'leg-hind-upper' | 'leg-hind-lower';
+/** 꼬리 마디의 그림. 밑동, 자를 수 있는 구간(1이 몸에서 가장 가깝다), 맨 끝 마디 */
+export type TailPartKey = 'tail-base' | `tail-${number}` | 'tail-tip';
+export type PartKey = BodyPartKey | TailPartKey;
 
 export interface PartSpec {
   key: PartKey;
@@ -30,6 +35,8 @@ const ART_PIXELS_PER_METER = 200;
 const BODY_COLOR = 0x8fb573;
 const HEAD_COLOR = 0x9cc47e;
 const LEG_COLOR = 0x7da163;
+/** 자르는 자리가 보이게 구간마다 번갈아 쓴다 */
+const TAIL_COLORS = [0x86ab6b, 0x9cc47e];
 const EYE_COLOR = 0x20262d;
 
 // 빌드할 때 있는 파일만 목록에 들어온다. 없는 파일을 불러 404를 내지 않기 위해서다.
@@ -51,7 +58,7 @@ export function preloadParts(scene: Phaser.Scene): void {
 }
 
 /** 지금 설정의 치수에서 나온 부위 목록 */
-export function partSpecs({ torso, head, legs }: GameConfig): Record<PartKey, PartSpec> {
+export function partSpecs({ torso, head, legs }: GameConfig): Record<BodyPartKey, PartSpec> {
   const radius = legs.thickness / 2;
   // 윗다리는 양 끝 관절을 반지름만큼 덮고, 아랫다리는 발바닥에서 끝난다
   const upper = { width: legs.thickness, height: legs.upper + legs.thickness, originX: 0.5, color: LEG_COLOR };
@@ -80,6 +87,19 @@ export function partSpecs({ torso, head, legs }: GameConfig): Record<PartKey, Pa
     'leg-front-lower': { ...lower, key: 'leg-front-lower', originY: lowerOriginY },
     'leg-hind-upper': { ...upper, key: 'leg-hind-upper', originY: upperOriginY },
     'leg-hind-lower': { ...lower, key: 'leg-hind-lower', originY: lowerOriginY },
+  };
+}
+
+/** 꼬리 마디 하나의 부위. 양 끝 관절을 반지름만큼 덮어 굽어도 틈이 보이지 않는다. */
+export function tailPartSpec(config: GameConfig, section: number, tip: boolean): PartSpec {
+  const thickness = sectionThickness(config, section);
+  return {
+    key: tip ? 'tail-tip' : section === 0 ? 'tail-base' : `tail-${section}`,
+    width: config.tail.linkLength + thickness,
+    height: thickness,
+    originX: 0.5,
+    originY: 0.5,
+    color: TAIL_COLORS[section % TAIL_COLORS.length],
   };
 }
 

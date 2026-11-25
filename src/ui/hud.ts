@@ -1,18 +1,22 @@
 import type { Scheme } from '../config/presets';
 import type { SystemCommands } from '../view/inputReader';
+import { keyList, MOVE_KEYS, SCHEME_GUIDES, SYSTEM_KEYS } from './controlsGuide';
+import { button as makeButton, element } from './dom';
 
 const TOAST_MS = 2500;
 
 type ToggleName = 'debug' | 'panel' | 'help';
 
-const BUTTONS: { name: ToggleName; command: keyof SystemCommands; label: string; key: string; tooltip: string }[] = [
+const BUTTONS: { name: ToggleName; command: 'toggleDebug' | 'togglePanel' | 'toggleHelp'; label: string; key: string; tooltip: string }[] = [
   { name: 'debug', command: 'toggleDebug', label: '디버그', key: 'F1', tooltip: '물리 디버그 그리기' },
   { name: 'panel', command: 'togglePanel', label: '패널', key: 'F2', tooltip: '튜닝 패널 열고 닫기' },
   { name: 'help', command: 'toggleHelp', label: '도움말', key: 'F3', tooltip: '조작 도움말 열고 닫기' },
 ];
 
-/** 화면 구석의 단추, 빌드 버전, 도움말 자리, 짧은 알림. 게임 화면 위에 DOM으로 올린다. */
+/** 화면 구석의 단추, 빌드 버전, 도움말, 일시정지 창, 짧은 알림. 게임 화면 위에 DOM으로 올린다. */
 export class Hud {
+  private readonly root: HTMLElement;
+  private readonly pausePanel = element('div', 'hud-pause');
   private readonly buttons = new Map<ToggleName, HTMLButtonElement>();
   private readonly status = element('div', 'hud-status');
   private readonly help = element('div', 'hud-help');
@@ -22,6 +26,7 @@ export class Hud {
   private toastTimer = 0;
 
   constructor(root: HTMLElement, commands: SystemCommands) {
+    this.root = root;
     const bar = element('div', 'hud-bar');
     for (const { name, command, label, key, tooltip } of BUTTONS) {
       const button = element('button', 'hud-button');
@@ -34,16 +39,13 @@ export class Hud {
       bar.append(button);
     }
 
-    this.help.append(
-      element('h2', '', '조작 도움말'),
-      keyLine('A / D 또는 ← / →', '이동'),
-      keyLine('Space', '점프'),
-      keyLine('F1', '물리 디버그'),
-      keyLine('F2', '튜닝 패널'),
-      keyLine('F3', '도움말'),
-      keyLine('R', '방 처음부터'),
-      element('p', 'hud-placeholder', '꼬리 조작 안내 자리'),
+    this.pausePanel.append(
+      element('h2', '', '일시정지'),
+      makeButton('계속하기', 'hud-button', () => commands.togglePause()),
+      makeButton('방 처음부터', 'hud-button', () => commands.restartRoom()),
+      makeButton('첫 화면으로', 'hud-button', () => commands.toStart()),
     );
+    this.pausePanel.hidden = true;
     this.help.hidden = true;
     this.toast.hidden = true;
     this.toast.setAttribute('role', 'status');
@@ -63,7 +65,16 @@ export class Hud {
     );
     this.copyBox.hidden = true;
 
-    root.replaceChildren(bar, this.help, this.toast, this.copyBox, this.status);
+    root.replaceChildren(bar, this.help, this.pausePanel, this.toast, this.copyBox, this.status);
+  }
+
+  destroy(): void {
+    window.clearTimeout(this.toastTimer);
+    this.root.replaceChildren();
+  }
+
+  setPaused(paused: boolean): void {
+    this.pausePanel.hidden = !paused;
   }
 
   setToggle(name: ToggleName, on: boolean): void {
@@ -71,8 +82,18 @@ export class Hud {
   }
 
   /** 팀원이 어느 버전을 해 봤는지 말할 수 있게 늘 보여 준다 */
-  setStatus(version: string, scheme: Scheme): void {
-    this.status.textContent = `${version} · 조작 ${scheme}`;
+  setStatus(version: string, scheme: Scheme, room: number): void {
+    this.status.textContent = `${version} · 방 ${room} · 조작 ${scheme}`;
+    const { title, summary, keys } = SCHEME_GUIDES[scheme];
+    this.help.replaceChildren(
+      element('h2', '', '조작 도움말'),
+      keyList(MOVE_KEYS),
+      element('h3', '', `꼬리 ${scheme}. ${title}`),
+      element('p', '', summary),
+      keyList(keys),
+      element('h3', '', '화면'),
+      keyList(SYSTEM_KEYS),
+    );
   }
 
   toggleHelp(): void {
@@ -95,17 +116,4 @@ export class Hud {
       this.toast.hidden = true;
     }, TOAST_MS);
   }
-}
-
-function element<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text = ''): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text) node.textContent = text;
-  return node;
-}
-
-function keyLine(key: string, label: string): HTMLElement {
-  const line = element('p', 'hud-key');
-  line.append(element('kbd', '', key), label);
-  return line;
 }
