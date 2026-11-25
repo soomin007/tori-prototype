@@ -76,6 +76,13 @@ export interface GameConfig {
     stride: number;
     stepSeconds: number;
     lift: number;
+    dutySlow: number;
+    dutyFast: number;
+    restSpread: number;
+    sprawl: number;
+    halfWidth: number;
+    pelvisDeg: number;
+    airPedal: number;
   };
   tail: {
     baseLinks: number;
@@ -226,11 +233,18 @@ export const DEFAULTS: GameConfig = {
     hindX: 0.3, // 몸통 중심에서 뒷다리까지
     hipY: 0.06, // 몸통 중심보다 이만큼 아래에 붙는다
     upper: 0.24,
-    lower: 0.24,
+    lower: 0.3, // 윗다리보다 길어 무릎이 높이 온다
     thickness: 0.11,
-    stride: 0.2, // 발이 제자리에서 이만큼 벗어나면 다시 딛는다
-    stepSeconds: 0.1,
+    stride: 0.2, // 다리 붙는 자리에서 이만큼 앞에 딛고 이만큼 뒤에서 뗀다
+    stepSeconds: 0.1, // 서 있을 때 발을 옮기는 시간
     lift: 0.1, // 발을 옮길 때 드는 높이
+    dutySlow: 0.64, // 천천히 걸을 때 발이 땅에 있는 비율. 실제 도마뱀의 뒷발 값(Reilly와 DeLancey 1997의 요약)
+    dutyFast: 0.52, // 가장 빠를 때의 비율. 출처는 위와 같다. 0.5보다 작으면 네 발이 함께 뜬다
+    restSpread: 0.07, // 서 있을 때와 공중에서 두 짝이 앞뒤로 갈리는 거리
+    sprawl: 0.04, // 다리를 벌린 모습. 가까운 쪽 발은 아래로, 먼 쪽 발은 위로 이만큼 옮긴다
+    halfWidth: 0.12, // 골반의 반폭. 아래 각도와 함께 다리 붙는 자리가 흔들리는 폭(약 4cm)을 정한다
+    pelvisDeg: 20, // 골반이 좌우로 도는 각도. 실제 도마뱀은 16~25도
+    airPedal: 1.2, // 공중에서 발을 젓는 빠르기(1초에 몇 번)
   },
   tail: {
     baseLinks: 3, // PLAN 7.3. 자를 수 없는 밑동
@@ -238,7 +252,7 @@ export const DEFAULTS: GameConfig = {
     linksPerSection: 3, // PLAN 7.3
     linkLength: 0.125, // 12마디면 꼬리 전체가 1.5m(PLAN 7.3)
     linkMass: 0.07, // kg. 몸통 3kg과 43:1. 60:1을 넘기지 않는다(known-issues 1번). 0.1이면 휘두를 때 몸이 50도까지 기운다
-    armature: 0.02, // kg·m². 마디마다 더하는 회전 관성. 0이면 가벼운 마디들의 모터가 풀리지 않아 꼬리가 구겨진다(known-issues 11번)
+    armature: 0.02, // kg·m². 마디마다 더하는 회전 관성. 0이면 가벼운 마디들의 모터가 풀리지 않아 꼬리가 구겨진다(known-issues 12번)
     baseThickness: 0.2,
     tipThickness: 0.08,
     hipX: 0.36, // 몸통 중심에서 밑동까지 뒤쪽 거리. 0이면 밑동이 가운데라 돌아설 때 옮기지 않는다(PLAN 7.2의 나)
@@ -381,8 +395,15 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'legs.lower': { label: '아랫다리 길이 (m)', min: 0.1, max: 0.6, step: 0.01, rebuild: true },
   'legs.thickness': { label: '다리 굵기 (m)', min: 0.04, max: 0.3, step: 0.01, rebuild: true },
   'legs.stride': { label: '보폭 (m)', min: 0.05, max: 0.5, step: 0.01 },
-  'legs.stepSeconds': { label: '한 걸음 (초)', min: 0.03, max: 0.5, step: 0.01 },
+  'legs.stepSeconds': { label: '서서 딛는 시간 (초)', min: 0.03, max: 0.5, step: 0.01 },
   'legs.lift': { label: '발 드는 높이 (m)', min: 0, max: 0.4, step: 0.01 },
+  'legs.dutySlow': { label: '땅에 닿는 비율 (느릴 때)', min: 0.5, max: 0.9, step: 0.01 },
+  'legs.dutyFast': { label: '땅에 닿는 비율 (빠를 때)', min: 0.5, max: 0.9, step: 0.01 },
+  'legs.restSpread': { label: '두 짝 벌어짐 (m)', min: 0, max: 0.3, step: 0.01 },
+  'legs.sprawl': { label: '다리 벌리기 (m)', min: 0, max: 0.15, step: 0.01 },
+  'legs.halfWidth': { label: '골반 반폭 (m)', min: 0, max: 0.3, step: 0.01 },
+  'legs.pelvisDeg': { label: '골반 회전 (도)', min: 0, max: 60, step: 1 },
+  'legs.airPedal': { label: '공중 발 젓기 (회/초)', min: 0, max: 5, step: 0.1 },
   'tail.baseLinks': { label: '밑동 마디 수', min: 1, max: 6, step: 1, rebuild: true },
   'tail.sections': { label: '자를 수 있는 구간 수', min: 0, max: 5, step: 1, rebuild: true },
   'tail.linksPerSection': { label: '구간마다 마디 수', min: 1, max: 4, step: 1, rebuild: true },
