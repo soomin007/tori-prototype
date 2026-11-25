@@ -302,7 +302,7 @@ export const DEFAULTS: GameConfig = {
     carryUp: 0.7, // 들고 있을 때 꼬리 끝이 몸통 중심보다 위로 간 거리(등 위 0.5m, PLAN 7.3)
   },
   grab: {
-    radius: 0.28, // 꼬리 끝에서 이 안에 있으면 잡힌다
+    radius: 0.32, // 꼬리 끝에서 이 안에 있으면 잡힌다
     snapSeconds: 0.12, // 잡은 자리까지 끝이 붙는 시간
     hangMotor: 0.15, // 가지에 걸린 동안 모터 세기 배율
     swingAccel: 5, // m/s². 매달려서 이동 키를 누를 때

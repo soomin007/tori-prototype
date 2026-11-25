@@ -465,6 +465,27 @@ describe('방 2', () => {
     }
   });
 
+  it('왼쪽 바닥에서 달려가며 뛰면 첫 가지에 걸린다', () => {
+    const data = roomByNumber(2);
+    const [branch] = data.branches;
+    for (const scheme of ['A', 'B'] as const) {
+      for (const jumpX of [12.4, 12.8, 13.2]) {
+        const run = new Run(scheme, { roomData: { ...data, boxes: [], spawn: { x: 10.5, y: 5.4 } } });
+        run.input.pointerActive = true;
+        run.input.pointer = { x: branch.x, y: branch.y };
+        run.input.held.grab = true;
+        run.input.held.pointerGrab = true;
+        let jumped = false;
+        let hooked = false;
+        run.seconds(3, () => {
+          if (!jumped && run.center.x >= jumpX) run.input.pressed.jump = jumped = true;
+          run.input.moveX = run.center.x > branch.x ? 0 : 1;
+          hooked ||= run.sim.tori.grab.hooked;
+        });
+        expect(hooked, `${scheme} ${jumpX}`).toBe(true);
+      }
+    }
+  });
   it('아무것도 하지 않으면 블록 탑이 서 있다', () => {
     const run = new Run('A', { roomData: roomByNumber(2), settle: 0 });
     const before = run.sim.objects.map(({ body }) => ({ ...body.translation() }));
