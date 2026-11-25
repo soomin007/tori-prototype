@@ -1,5 +1,5 @@
 import GUI from 'lil-gui';
-import { GROUP_LABELS, PARAM_META, paramPaths, resolveParam } from '../config/defaults';
+import { GROUP_LABELS, OPEN_GROUPS, PARAM_META, paramPaths, resolveParam } from '../config/defaults';
 import type { GameConfig, ParamMeta } from '../config/defaults';
 import { SCHEMES, switchScheme } from '../config/presets';
 import type { Scheme } from '../config/presets';
@@ -69,8 +69,11 @@ export class TuningPanel {
     const folders = new Map<string, GUI>();
     for (const path of paramPaths()) {
       const group = path.split('.')[0] as keyof GameConfig;
-      const folder = folders.get(group) ?? this.gui.addFolder(GROUP_LABELS[group]);
-      folders.set(group, folder);
+      let folder = folders.get(group);
+      if (!folder) {
+        folder = this.gui.addFolder(GROUP_LABELS[group]).open(OPEN_GROUPS.includes(group));
+        folders.set(group, folder);
+      }
 
       const meta = PARAM_META[path];
       const { section, key } = resolveParam(config, path);

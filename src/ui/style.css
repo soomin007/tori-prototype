@@ -74,7 +74,8 @@ kbd {
 
 .hud-key kbd {
   display: inline-block;
-  width: 32px;
+  min-width: 120px;
+  white-space: nowrap;
   font-size: 13px;
 }
 

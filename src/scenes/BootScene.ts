@@ -1,9 +1,14 @@
 import Phaser from 'phaser';
+import { preloadParts } from '../view/parts';
 
-/** 그림과 소리를 불러오는 자리. 아직 불러올 것이 없어 바로 방으로 넘어간다. */
+/** 그림과 소리를 불러온 뒤 방으로 넘어간다 */
 export class BootScene extends Phaser.Scene {
   constructor() {
     super('Boot');
+  }
+
+  preload(): void {
+    preloadParts(this);
   }
 
   create(): void {

@@ -34,14 +34,15 @@ export class Hud {
       bar.append(button);
     }
 
-    // 자리만 잡아 둔다. 토리 조작은 M1부터 채운다.
     this.help.append(
       element('h2', '', '조작 도움말'),
+      keyLine('A / D 또는 ← / →', '이동'),
+      keyLine('Space', '점프'),
       keyLine('F1', '물리 디버그'),
       keyLine('F2', '튜닝 패널'),
       keyLine('F3', '도움말'),
       keyLine('R', '방 처음부터'),
-      element('p', 'hud-placeholder', '토리 조작 안내 자리'),
+      element('p', 'hud-placeholder', '꼬리 조작 안내 자리'),
     );
     this.help.hidden = true;
     this.toast.hidden = true;
