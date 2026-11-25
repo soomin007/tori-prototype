@@ -61,7 +61,7 @@
 - Rapier 2D(`@dimforge/rapier2d-compat`): 물리 전부. WASM이 패키지 안에 들어 있어 Node 테스트에서도 그대로 돈다(Node 26에서 확인). 쓰기 전에 `await RAPIER.init()`.
 - lil-gui: 튜닝 패널
 - Vitest: 로직 테스트, 헤드리스 물리 테스트
-- GitHub Actions → GitHub Pages: `main`에 푸시하면 테스트, 빌드 후 자동 배포. Vite `base: './'`.
+- GitHub Actions → GitHub Pages: `main`이나 `dev`에 푸시하면 두 브랜치를 테스트, 빌드해서 한 번에 자동 배포. Vite `base: './'`.
 
 2026-11-25 기준 최신 버전은 phaser 4.2.1, @dimforge/rapier2d-compat 0.21.0, vite 8.3.8, vitest 5.1.2, lil-gui 0.21.0, typescript 7.0.2이고, 개발 PC는 Node 26.13, npm 11.20이다. M0에서 이 버전으로 설치해 `package-lock.json`으로 고정하고, GitHub Actions의 Node도 26으로 맞춘다. Vite 8, Vitest 5, TypeScript 7은 나온 지 얼마 안 된 큰 버전이라, 설정 파일 형식은 기억에 기대지 말고 공식 문서를 확인한다. `tsconfig.json`에는 `skipLibCheck: true`를 넣는다(known-issues 5번).
 
@@ -242,7 +242,7 @@ B 방식은 마우스 없이 키보드만으로 할 수 있어야 한다.
 
 ## 10. 마일스톤
 
-마일스톤마다 배포 링크에서 바로 해 볼 수 있는 상태로 끝낸다. 작업은 마일스톤 브랜치(`m0-setup`, `m1-body` 같은 이름)에서 하고, 손으로 확인까지 끝나면 `main`에 합친다. `main`은 팀원이 보는 링크와 같아서, 만드는 중인 상태를 올리지 않는다.
+마일스톤마다 배포 링크에서 바로 해 볼 수 있는 상태로 끝낸다. 개발자는 로컬에서 띄워 보지 않고 배포된 주소에서만 확인하므로 주소를 둘로 나눈다. `main`은 팀원이 보는 주소(https://soomin007.github.io/tori-prototype/)이고, `dev`는 개발자가 확인하는 주소(https://soomin007.github.io/tori-prototype/dev/)다. 작업은 `dev`에서 하고, 자동 확인과 브라우저 확인을 마치면 푸시해서 `dev/` 주소에 배포한다. 개발자가 그 주소에서 확인하고 좋다고 하면 `main`에 합친다. 만드는 중인 상태는 `main`에 올리지 않는다.
 
 ### 일정
 
@@ -275,7 +275,7 @@ B 방식은 마우스 없이 키보드만으로 할 수 있어야 한다.
 - 할 일: 프로젝트 생성, Rapier 초기화, 고정 스텝 루프와 보간 그리기, 디버그 그리기, 튜닝 패널 뼈대, 설정과 프리셋과 URL 공유, GitHub Pages 자동 배포, 빌드 버전 표시, 터치 기기 안내, Phaser import 경계 테스트(6절).
 - 자동 확인: `npm run build`, `npm test` 통과. 헤드리스 테스트 2개(상자가 바닥에 떨어져 멈춘다 / Phaser를 쓰면 안 되는 여섯 폴더에 Phaser import가 없다).
 - 손으로 확인: 링크가 열린다 / 상자 몇 개가 떨어진다 / F1, F2와 화면 단추가 동작한다 / 패널에서 중력을 바꾸면 바로 반영된다.
-- 사람이 할 일: GitHub 저장소를 README 없이 빈 공개 저장소로 만든다(무료 계정은 공개 저장소에서만 Pages를 쓸 수 있다). Settings → Pages → Source를 "GitHub Actions"로 한 번 설정한다. 이 PC의 gh CLI가 로그인돼 있어서 Claude에게 시켜도 된다.
+- 사람이 할 일: 없다. 공개 저장소를 만드는 일과 Pages의 Source를 "GitHub Actions"로 바꾸는 일은 끝났다(2026-11-25). `dev/` 주소에서 위 항목을 확인하고 `main`에 합칠지 정한다.
 
 ### M1. 토리 몸 (11월 28일까지)
 
