@@ -21,6 +21,14 @@ export default defineConfig({
   build: {
     // Phaser와 Rapier(WASM 포함)가 커서 기본 경고 기준(500kB)을 늘 넘는다
     chunkSizeWarningLimit: 5000,
+    // 배포 직후 CDN이 10분 동안 이전 index.html을 줄 수 있다. 파일 이름에 해시가 있으면 그 안의 파일이 이미 지워져 빈 화면이 된다(known-issues 10번)
+    rolldownOptions: {
+      output: {
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name][extname]',
+      },
+    },
   },
   test: {
     environment: 'node',
