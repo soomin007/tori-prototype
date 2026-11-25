@@ -1,34 +1,44 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 import type { GameConfig } from '../config/defaults';
+import { DEFAULT_SCHEME } from '../config/presets';
+import type { Scheme } from '../config/presets';
 import { groundProbeGroups } from '../physics/groups';
 import { FixedStepper, PhysicsWorld } from '../physics/world';
 import type { Pose } from '../physics/world';
 import { roomByNumber } from '../rooms/rooms';
-import type { RoomData } from '../rooms/rooms';
+import type { Point, RoomData } from '../rooms/rooms';
 import { Tori } from '../tori/body';
-import { clearPressed } from './inputState';
+import type { TailController } from '../tori/controllers/aim';
+import { AutoTail } from '../tori/controllers/autoTail';
+import { MouseTail } from '../tori/controllers/mouseTail';
+import { clearMomentary } from './inputState';
 import type { InputState } from './inputState';
 import { Room } from './roomBuilder';
 import type { SimObject } from './roomBuilder';
+import { Strikes } from './strike';
 
 /**
  * 월드, 방, 토리를 묶어 한 스텝씩 진행한다. 화면 없이도 돈다.
  * 만들기 전에 physics/world.ts의 initPhysics()를 기다려야 한다.
  */
 export class Simulation {
-  readonly roomData: RoomData;
+  roomData: RoomData;
+  private scheme: Scheme;
   private readonly config: GameConfig;
   private readonly stepper = new FixedStepper();
   private physics!: PhysicsWorld;
   private room!: Room;
   tori!: Tori;
+  controller!: TailController;
+  strikes!: Strikes;
   /** 방을 다시 만들 때마다 1씩 커진다. 그리기 쪽은 이 값이 바뀌면 그림을 다시 만든다. */
   generation = 0;
   stepCount = 0;
 
-  constructor(config: GameConfig, roomData: RoomData = roomByNumber(1)) {
+  constructor(config: GameConfig, roomData: RoomData = roomByNumber(1), scheme: Scheme = DEFAULT_SCHEME) {
     this.config = config;
     this.roomData = roomData;
+    this.scheme = scheme;
     this.build();
   }
 
@@ -39,6 +49,22 @@ export class Simulation {
   /** 디버그 그리기용 Rapier 월드 */
   get world(): RAPIER.World {
     return this.physics.raw;
+  }
+
+  /** 꼬리 조작 방식을 바꾼다. 방은 그대로 둔다. */
+  setScheme(scheme: Scheme): void {
+    this.scheme = scheme;
+    this.controller = createController(scheme);
+  }
+
+  /** 다른 방으로 옮긴다 */
+  enterRoom(roomData: RoomData): void {
+    this.roomData = roomData;
+    this.reset();
+  }
+
+  free(): void {
+    this.physics.free();
   }
 
   /** 방을 처음부터 다시 만든다 */
@@ -64,16 +90,27 @@ export class Simulation {
 
   /** 고정 스텝 한 번 */
   step(input: InputState): void {
-    this.tori.step(input);
+    const { tori, config } = this;
+    const command = this.controller.update(input, { tori, config, grabbables: this.room.grabbables });
+    tori.step(input, command);
+    this.strikes.before(tori, this.objects);
     this.physics.step();
     this.stepCount += 1;
+    this.strikes.after(this.world, tori, this.objects, config, this.stepCount);
     // 한 프레임에 여러 스텝이 돌아도 누른 순간은 한 번만 쓴다. 스텝이 돌지 않은 프레임의 입력은 다음까지 남는다.
-    clearPressed(input);
+    clearMomentary(input);
   }
 
   /** 지금 그릴 자세 */
   poseOf(body: RAPIER.RigidBody): Pose {
     return this.physics.poseOf(body, this.config.view.interpolate ? this.stepper.alpha : 1);
+  }
+
+  /** 바디 안의 점이 지금 그려질 자리 */
+  pointOf(body: RAPIER.RigidBody, local: Point): Point {
+    const { x, y, angle } = this.poseOf(body);
+    const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+    return { x: x + local.x * cos - local.y * sin, y: y + local.x * sin + local.y * cos };
   }
 
   /** (x, y)에서 아래로 maxDistance까지 디딜 바닥을 찾아 그 y를 준다. 다리 그림이 쓴다. */
@@ -86,6 +123,15 @@ export class Simulation {
   private build(): void {
     this.physics = new PhysicsWorld(this.config);
     this.room = new Room(this.physics, this.roomData, this.config);
-    this.tori = new Tori(this.physics, this.config, this.roomData.spawn, (collider) => this.room.surfaceOf(collider));
+    this.tori = new Tori(this.physics, this.config, this.roomData.spawn, {
+      surfaceOf: (collider) => this.room.surfaceOf(collider),
+      grabbables: this.room.grabbables,
+    });
+    this.strikes = new Strikes();
+    this.controller = createController(this.scheme);
   }
+}
+
+function createController(scheme: Scheme): TailController {
+  return scheme === 'A' ? new MouseTail() : new AutoTail();
 }

@@ -64,7 +64,8 @@ class Run {
 describe('토리 몸', () => {
   it('가만히 있으면 몸통 아랫면이 정해진 높이에 뜨고 수평으로 선다', () => {
     const run = new Run(FLAT).seconds(2);
-    expect(run.y).toBeCloseTo(STAND_Y, 2);
+    // 꼬리 무게로 조금 기울어 있어 2cm까지 봐준다
+    expect(Math.abs(run.y - STAND_Y)).toBeLessThan(0.02);
     expect(run.x).toBeCloseTo(2, 1);
     expect(run.maxTilt).toBeLessThan(3);
     // 레이캐스트가 자기 몸을 맞았다면 거리가 0에 가깝다
@@ -88,7 +89,7 @@ describe('토리 몸', () => {
     expect(run.x).toBeGreaterThan(9);
     expect(run.maxTilt).toBeLessThan(45);
     run.seconds(1.5);
-    expect(run.y).toBeCloseTo(STAND_Y - 0.2, 2);
+    expect(Math.abs(run.y - (STAND_Y - 0.2))).toBeLessThan(0.02);
   });
 
   it('가속과 감속 값을 따로 따른다', () => {

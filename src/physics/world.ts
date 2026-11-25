@@ -20,11 +20,34 @@ export interface Pose {
   angle: number;
 }
 
+/** 각도를 -π와 π 사이로 접는다 */
+export function wrapAngle(angle: number): number {
+  const turn = Math.PI * 2;
+  return ((((angle + Math.PI) % turn) + turn) % turn) - Math.PI;
+}
+
+/** from에서 to까지 짧은 쪽으로 도는 각 */
+export function angleDiff(to: number, from: number): number {
+  return wrapAngle(to - from);
+}
+
 /** 두 각도 사이를 짧은 쪽으로 잇는다. Rapier의 각도는 -π와 π 사이라 그냥 이으면 한 바퀴 돈다. */
 export function lerpAngle(from: number, to: number, t: number): number {
-  const turn = Math.PI * 2;
-  const diff = ((((to - from + Math.PI) % turn) + turn) % turn) - Math.PI;
-  return from + diff * t;
+  return from + angleDiff(to, from) * t;
+}
+
+/** 바디 안의 점을 방 좌표로 */
+export function toWorld(body: RAPIER.RigidBody, local: { x: number; y: number }): { x: number; y: number } {
+  const { x, y } = body.translation();
+  const [cos, sin] = [Math.cos(body.rotation()), Math.sin(body.rotation())];
+  return { x: x + local.x * cos - local.y * sin, y: y + local.x * sin + local.y * cos };
+}
+
+/** 방 좌표의 점을 바디 안의 점으로 */
+export function toLocal(body: RAPIER.RigidBody, point: { x: number; y: number }): { x: number; y: number } {
+  const { x, y } = body.translation();
+  const [cos, sin] = [Math.cos(body.rotation()), Math.sin(body.rotation())];
+  return { x: (point.x - x) * cos + (point.y - y) * sin, y: -(point.x - x) * sin + (point.y - y) * cos };
 }
 
 export function lerpPose(from: Pose, to: Pose, t: number): Pose {

@@ -1,11 +1,15 @@
 import RAPIER from '@dimforge/rapier2d-compat';
-import { FIXED_DT } from '../config/defaults';
+import { DEG, FIXED_DT } from '../config/defaults';
 import type { GameConfig } from '../config/defaults';
 import { collisionGroups, groundProbeGroups } from '../physics/groups';
 import { lerpAngle } from '../physics/world';
 import type { PhysicsWorld } from '../physics/world';
 import type { Point, Surface } from '../rooms/rooms';
 import type { InputState } from '../sim/inputState';
+import { TailGrab } from './grab';
+import type { Grabbable } from './grab';
+import { Tail } from './tail';
+import type { TailCommand } from './tail';
 
 /** 디버그 그리기용 레이캐스트 한 줄 */
 export interface ProbeLine {
@@ -21,22 +25,29 @@ interface GroundHit extends Point {
   collider: RAPIER.Collider;
 }
 
-type SurfaceLookup = (collider: RAPIER.Collider) => Surface;
+/** 토리가 방에 대해 아는 것 */
+export interface Surroundings {
+  surfaceOf(collider: RAPIER.Collider): Surface;
+  grabbables: readonly Grabbable[];
+}
 
-const DEG = Math.PI / 180;
 const DOWN = { x: 0, y: 1 };
 /** 감쇠가 한 스텝에 속도를 뒤집지 않게 하는 상한 */
 const MAX_DAMPING_PER_STEP = 0.8;
 
 /**
- * 토리의 몸통과 머리. 몸통은 바닥에 끌지 않고 레이캐스트 스프링으로 띄우고, 회전은 잠그지 않는다.
+ * 토리의 몸통, 머리, 꼬리. 몸통은 바닥에 끌지 않고 레이캐스트 스프링으로 띄우고, 회전은 잠그지 않는다.
  * 물리도 화면처럼 y가 아래로 커진다. 그래서 양의 각도는 화면에서 시계 방향이고, 위쪽 속도는 음수다.
  */
 export class Tori {
   readonly torso: RAPIER.RigidBody;
   readonly head: RAPIER.RigidBody;
+  readonly tail: Tail;
+  readonly grab: TailGrab;
   /** 능력표의 balance(M3). 직립 세기에 곱한다. */
   balance = 1;
+  /** 능력표의 잡기(M3). 꺼져 있으면 꼬리 끝만 꼼지락거린다. */
+  canGrab = true;
   /** 바라보는 쪽. 오른쪽 1, 왼쪽 -1 */
   facing: 1 | -1 = 1;
   /** 방향 전환의 진행. -1(왼쪽)과 1(오른쪽) 사이를 turnSeconds에 걸쳐 움직인다. */
@@ -49,7 +60,7 @@ export class Tori {
 
   private readonly config: GameConfig;
   private readonly world: RAPIER.World;
-  private readonly surfaceOf: SurfaceLookup;
+  private readonly surroundings: Surroundings;
   private readonly neck: RAPIER.RevoluteImpulseJoint;
   private readonly torsoCollider: RAPIER.Collider;
   private readonly headCollider: RAPIER.Collider;
@@ -59,11 +70,12 @@ export class Tori {
   private coyote = 0;
   /** 미리 누른 점프를 기억하는 남은 시간 */
   private buffer = 0;
+  private time = 0;
 
-  constructor(physics: PhysicsWorld, config: GameConfig, spawn: Point, surfaceOf: SurfaceLookup) {
+  constructor(physics: PhysicsWorld, config: GameConfig, spawn: Point, surroundings: Surroundings) {
     this.config = config;
     this.world = physics.raw;
-    this.surfaceOf = surfaceOf;
+    this.surroundings = surroundings;
     const { torso, head } = config;
 
     // 스프링으로 떠 있는 몸은 늘 힘을 받으므로 재우지 않는다
@@ -91,10 +103,12 @@ export class Tori {
     const joint = RAPIER.JointData.revolute(torsoAnchor, headAnchor);
     this.neck = this.world.createImpulseJoint(joint, this.torso, this.head, true) as RAPIER.RevoluteImpulseJoint;
     this.neck.setContactsEnabled(false);
-    this.applyConfig();
 
     physics.track(this.torso);
     physics.track(this.head);
+    this.tail = new Tail(physics, config, this.torso, this.turn);
+    this.grab = new TailGrab(physics, config, surroundings.grabbables);
+    this.applyConfig();
   }
 
   /** 실행 중에 바뀐 값 가운데 매 스텝 읽지 않는 것을 반영한다 */
@@ -107,14 +121,27 @@ export class Tori {
     const limit = head.limitDeg * DEG;
     this.neck.setLimits(-limit, limit);
     this.neck.configureMotorPosition(0, head.stiffness, head.damping);
+    this.tail.applyConfig();
   }
 
-  get mass(): number {
+  /** 몸통과 머리의 질량 */
+  get bodyMass(): number {
     return this.torso.mass() + this.head.mass();
   }
 
+  /** 꼬리까지 더한 질량 */
+  get mass(): number {
+    return this.bodyMass + this.tail.mass;
+  }
+
+  /** 가지에 매달려 발이 떨어져 있는지 */
+  get hanging(): boolean {
+    return this.grab.hooked && !this.grounded;
+  }
+
   /** 물리 스텝 직전에 한 번 부른다 */
-  step(input: InputState): void {
+  step(input: InputState, command: TailCommand): void {
+    this.time += FIXED_DT;
     // addForce로 준 힘은 지울 때까지 남는다
     this.torso.resetForces(true);
     this.torso.resetTorques(true);
@@ -126,14 +153,30 @@ export class Tori {
     if (this.grounded) this.floatUp(hits);
     this.move(input.moveX);
     this.keepUpright();
+
+    this.grab.update(command.grab && this.canGrab, this.tail, [this.torsoCollider, this.headCollider]);
+    if (command.grab && !this.canGrab) this.wriggle(command);
+    const swing = this.tail.drive(command, this.turn, this.grab.hooked);
+    // 밑동 모터의 반작용 가운데 꼬리 무게를 버티는 몫을 뺀 나머지가 반동이다. 그 일부를 다리가 버틴다.
+    if (this.grounded) this.torso.addTorque(swing * this.config.tail.brace, true);
+  }
+
+  /** 잡기 능력이 없을 때 끝의 마디 셋을 꼼지락거린다 */
+  private wriggle({ pose }: TailCommand): void {
+    const { wriggleDeg, wriggleHz } = this.config.grab;
+    const angle = wriggleDeg * DEG * Math.sin(this.time * wriggleHz * 2 * Math.PI);
+    for (let i = Math.max(1, pose.length - 3); i < pose.length; i += 1) pose[i] += angle;
   }
 
   // ---- 방향 ----
 
   private updateFacing(moveX: number): void {
+    // 가지에 걸린 동안에는 돌아서지 않는다. 밑동을 옮기면 걸린 끝에 매달린 몸이 통째로 끌려간다.
+    if (this.grab.hooked) return;
     if (moveX !== 0) this.facing = moveX > 0 ? 1 : -1;
     if (this.turn === this.facing) return;
     const before = this.headOffset();
+    const turnBefore = this.turn;
     this.turn = approach(this.turn, this.facing, (2 * FIXED_DT) / this.config.move.turnSeconds);
     const after = this.headOffset();
     const { torsoAnchor, headAnchor } = this.neckAnchors();
@@ -142,6 +185,7 @@ export class Tori {
     // 관절 앵커만 옮기면 솔버가 머리를 낚아채면서 그 반동으로 몸통이 크게 돈다(실측 49도). 머리도 같이 옮긴다.
     const { x, y } = this.head.translation();
     this.head.setTranslation({ x: x + after.x - before.x, y: y + after.y - before.y }, true);
+    this.grab.shift(this.tail.moveHip(turnBefore, this.turn));
   }
 
   /** 목이 꺾이지 않았을 때 몸통 중심에서 머리 중심까지 */
@@ -184,7 +228,7 @@ export class Tori {
   }
 
   /** 떠 있을 때 몸통 축에서 바닥까지의 거리 */
-  private get standDistance(): number {
+  get standDistance(): number {
     return this.config.torso.thickness / 2 + this.config.float.clearance;
   }
 
@@ -199,7 +243,7 @@ export class Tori {
 
     if (this.grounded) {
       const under = hits.find((hit) => hit.offset === 0) ?? nearest(hits);
-      this.surface = this.surfaceOf(under.collider);
+      this.surface = this.surroundings.surfaceOf(under.collider);
     }
   }
 
@@ -223,19 +267,22 @@ export class Tori {
     const damping = Math.min(2 * float.dampingRatio * omega, MAX_DAMPING_PER_STEP / FIXED_DT);
     const spring = Math.max(omega * omega * error + damping * bounce, -float.pullDown);
 
-    // 무게를 받치는 힘은 전체 무게중심에 준다. 스프링 힘은 몸통에 주어 착지할 때 머리 무게로 기우뚱한다.
+    // 무게를 받치는 힘은 무게중심에 준다. 스프링 힘은 몸통에 주어 착지할 때 머리 무게로 기우뚱한다.
+    // 꼬리의 무게는 다 받치지만, 꼬리가 옮긴 무게중심은 일부만(tail.support) 따라가서 남은 만큼 기운다.
     // 일부만 바닥 위에 있으면 받치는 자리가 그쪽으로 옮겨 빈 쪽으로 기운다.
     const { x, y } = this.torso.translation();
     const support = hits.reduce((sum, hit) => sum + hit.x - x, 0) / hits.length;
     const lean = support * float.edgeLean;
     const weight = { x: this.centerOfMassX() + lean, y };
     this.torso.addForceAtPoint({ x: 0, y: -this.mass * physics.gravity }, weight, true);
-    this.torso.addForceAtPoint({ x: 0, y: -this.mass * spring }, { x: x + lean, y }, true);
+    this.torso.addForceAtPoint({ x: 0, y: -this.bodyMass * spring }, { x: x + lean, y }, true);
   }
 
   private centerOfMassX(): number {
-    const weighted = [this.torso, this.head].reduce((sum, body) => sum + body.translation().x * body.mass(), 0);
-    return weighted / this.mass;
+    const moment = [this.torso, this.head].reduce((sum, body) => sum + body.translation().x * body.mass(), 0);
+    const body = moment / this.bodyMass;
+    const whole = (moment + this.tail.momentX) / this.mass;
+    return body + (whole - body) * this.config.tail.support;
   }
 
   // ---- 점프 ----
@@ -246,9 +293,11 @@ export class Tori {
     if (this.buffer === 0 || (!this.grounded && this.coyote === 0)) return;
 
     // 떨어지는 중이거나 튀어 오르는 중이어도 같은 높이를 뛰게 한다. 몸통과 머리에 나눠 주어 몸이 돌지 않는다.
+    const change = -(jump.speed + this.torso.linvel().y);
     for (const body of [this.torso, this.head]) {
       body.applyImpulse({ x: 0, y: -body.mass() * (jump.speed + body.linvel().y) }, true);
     }
+    if (!this.grab.hooked) this.tail.addVelocityY(change);
     this.grounded = false;
     this.buffer = 0;
     this.coyote = 0;
@@ -258,8 +307,13 @@ export class Tori {
   // ---- 이동과 직립 ----
 
   private move(moveX: number): void {
-    const { move, ground } = this.config;
+    const { move, ground, grab } = this.config;
     const vx = this.torso.linvel().x;
+    if (this.hanging) {
+      // 매달린 동안에는 흔드는 힘만 준다. 멈추는 힘까지 주면 흔들림이 바로 죽는다.
+      this.torso.addForce({ x: moveX * grab.swingAccel * this.bodyMass, y: 0 }, true);
+      return;
+    }
     const target = moveX * move.maxSpeed;
     // 가는 쪽으로 더 빨라질 때만 가속 값을 쓰고, 느려지거나 되돌아설 때는 감속 값을 쓴다
     const speedingUp = moveX !== 0 && vx * moveX >= 0 && Math.abs(target) > Math.abs(vx);

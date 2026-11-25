@@ -23,6 +23,16 @@ export interface BoxData {
   width: number;
   height: number;
   angle: number;
+  /** 꼬리 끝으로 들 수 있는지 */
+  grabbable: boolean;
+}
+
+/** 꼬리를 걸고 매달리는 가지. 몸이나 물건과는 부딪히지 않는다. */
+export interface BranchData {
+  x: number;
+  y: number;
+  length: number;
+  thickness: number;
 }
 
 export interface RoomData {
@@ -32,6 +42,7 @@ export interface RoomData {
   spawn: Point;
   terrain: readonly TerrainData[];
   boxes: readonly BoxData[];
+  branches: readonly BranchData[];
 }
 
 /** 바닥 윗면의 y. 아래 도우미는 이 높이에서 위로 잰 값(h)을 받는다. */
@@ -93,10 +104,63 @@ const MOVE_ROOM: RoomData = {
     wall(57, 58.5),
   ],
   boxes: [],
+  branches: [],
 };
 
-/** 방 번호 - 1이 자리다. 방 2~4는 M2부터 채운다. */
-export const ROOMS: readonly RoomData[] = [MOVE_ROOM];
+/** 바닥이나 다른 상자 위에 놓인 상자. h는 아랫면의 높이다. */
+function box(x: number, width: number, height = width, h = 0, grabbable = false): BoxData {
+  return { x, y: FLOOR_Y - h - height / 2, width, height, angle: 0, grabbable };
+}
+
+/** 한 층에 세 개씩 어긋나게 쌓은 블록 탑 */
+function tower(x: number, rows: number, width: number, height: number): BoxData[] {
+  return Array.from({ length: rows }, (_, row) => {
+    const shift = row % 2 === 0 ? 0 : width / 2;
+    const count = row % 2 === 0 ? 3 : 2;
+    return Array.from({ length: count }, (_, i) => box(x + shift + i * width, width - 0.01, height, row * height));
+  }).flat();
+}
+
+function branch(x: number, h: number, length = 0.7): BranchData {
+  return { x, y: FLOOR_Y - h, length, thickness: 0.1 };
+}
+
+/** 방 2: 꼬리. 왼쪽부터 크기가 다른 상자와 작은 물건, 높이가 다른 가지 3개(아래는 구덩이), 좁은 틈, 블록 탑 순서다. */
+const TAIL_ROOM: RoomData = {
+  bounds: { left: -0.5, top: -3, right: 40.5, bottom: FLOOR_BOTTOM_Y },
+  spawn: at(3, 0.5),
+  terrain: [
+    wall(-1.5, 0),
+    ground(0, 14),
+    // 가지 아래의 구덩이. 매달렸을 때 발이 닿지 않고, 떨어져도 뛰어서 나올 수 있다
+    ground(14, 23, -0.8),
+    ground(23, 40),
+    // 꼬리가 낄 만한 좁은 틈: 세로 틈 하나와, 벽에 난 가로 틈 하나
+    ground(26, 26.6, 0.8),
+    ground(26.78, 27.4, 0.8),
+    ground(29.4, 30.4, 0.5),
+    platform(29.4, 30.4, 1.3, 0.62),
+    wall(40, 41.5),
+  ],
+  boxes: [
+    box(5.2, 0.3),
+    box(6.4, 0.5),
+    box(7.9, 0.8),
+    box(9.4, 0.18, 0.18, 0, true),
+    box(10.1, 0.22, 0.22, 0, true),
+    box(10.8, 0.14, 0.3, 0, true),
+    box(31.6, 0.18, 0.18, 0, true),
+    ...tower(34.5, 6, 0.4, 0.3),
+  ],
+  branches: [branch(15.4, 1.8), branch(18.2, 2.2), branch(21.2, 2.5)],
+};
+
+/** 방 번호 - 1이 자리다. 방 3은 M4, 방 4는 M3에서 채운다. */
+export const ROOMS: readonly RoomData[] = [MOVE_ROOM, TAIL_ROOM];
+
+export function hasRoom(room: number): boolean {
+  return ROOMS[room - 1] !== undefined;
+}
 
 /** 아직 없는 번호면 방 1을 준다 */
 export function roomByNumber(room: number): RoomData {

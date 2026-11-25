@@ -11,20 +11,35 @@ export interface InputState {
   pressed: Record<Action, boolean>;
   /** 마우스가 가리키는 자리(미터, 방 좌표) */
   pointer: { x: number; y: number };
+  /** 마우스를 한 번이라도 움직였는지. 그 전에는 pointer를 쓰지 않는다. */
+  pointerActive: boolean;
+  /** 포인터를 잠근 동안 마우스가 움직인 거리(미터). 물리 스텝이 한 번 돌면 지워진다. */
+  pointerDelta: { x: number; y: number };
 }
 
-export type Action = 'jump' | 'interact' | 'cutTail' | 'grab' | 'attack';
+/** pointerGrab은 A 방식, grab과 attack은 B 방식이 쓴다 */
+export type Action = 'jump' | 'interact' | 'cutTail' | 'pointerGrab' | 'grab' | 'attack';
 
-const ACTIONS: readonly Action[] = ['jump', 'interact', 'cutTail', 'grab', 'attack'];
+const ACTIONS: readonly Action[] = ['jump', 'interact', 'cutTail', 'pointerGrab', 'grab', 'attack'];
 
 function emptyActions(): Record<Action, boolean> {
-  return { jump: false, interact: false, cutTail: false, grab: false, attack: false };
+  return { jump: false, interact: false, cutTail: false, pointerGrab: false, grab: false, attack: false };
 }
 
 export function createInputState(): InputState {
-  return { moveX: 0, held: emptyActions(), pressed: emptyActions(), pointer: { x: 0, y: 0 } };
+  return {
+    moveX: 0,
+    held: emptyActions(),
+    pressed: emptyActions(),
+    pointer: { x: 0, y: 0 },
+    pointerActive: false,
+    pointerDelta: { x: 0, y: 0 },
+  };
 }
 
-export function clearPressed(input: InputState): void {
+/** 한 스텝만 쓰는 입력을 지운다 */
+export function clearMomentary(input: InputState): void {
   for (const action of ACTIONS) input.pressed[action] = false;
+  input.pointerDelta.x = 0;
+  input.pointerDelta.y = 0;
 }

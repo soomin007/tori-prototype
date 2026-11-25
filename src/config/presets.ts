@@ -9,7 +9,7 @@ export const SCHEMES: readonly Scheme[] = ['A', 'B'];
 /** 처음 열었을 때의 방식(자리값). 팀이 M2 뒤 회의에서 하나를 고른다. */
 export const DEFAULT_SCHEME: Scheme = 'A';
 
-/** 방식마다 기본값과 다르게 둘 항목(경로 → 값). 꼬리가 들어오는 M2에서 채운다. */
+/** 방식마다 기본값과 다르게 둘 항목(경로 → 값). 두 방식을 비교하기 쉽게 지금은 물리 값을 같게 둔다. */
 const OVERRIDES: Record<Scheme, Record<string, ParamValue>> = {
   A: {},
   B: {},

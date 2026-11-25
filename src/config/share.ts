@@ -6,7 +6,7 @@ import type { Scheme } from './presets';
 /** 링크 하나로 전할 수 있는 실행 설정 */
 export interface Session {
   scheme: Scheme;
-  /** 방 번호 1~4. M0에는 방이 하나뿐이라 값만 들고 있다. */
+  /** 방 번호 1~4. 아직 없는 방 번호도 링크에는 남는다. */
   room: number;
   config: GameConfig;
 }

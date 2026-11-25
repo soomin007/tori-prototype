@@ -2,7 +2,8 @@ import RAPIER from '@dimforge/rapier2d-compat';
 import type { GameConfig } from '../config/defaults';
 import { collisionGroups } from '../physics/groups';
 import type { PhysicsWorld } from '../physics/world';
-import type { BoxData, RoomData, Surface, TerrainData } from '../rooms/rooms';
+import type { Grabbable } from '../tori/grab';
+import type { BoxData, BranchData, RoomData, Surface, TerrainData } from '../rooms/rooms';
 
 /** 움직이는 물건. 크기는 미터다. */
 export interface SimObject {
@@ -17,6 +18,8 @@ export interface SimObject {
 export class Room {
   readonly data: RoomData;
   readonly objects: readonly SimObject[];
+  /** 꼬리 끝으로 잡을 수 있는 물건과 가지 */
+  readonly grabbables: readonly Grabbable[];
   private readonly terrain: readonly RAPIER.Collider[];
   private readonly surfaces = new Map<number, Surface>();
 
@@ -25,6 +28,10 @@ export class Room {
     const ground = physics.raw.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     this.terrain = data.terrain.map((piece) => this.addTerrain(physics.raw, ground, piece));
     this.objects = data.boxes.map((box) => addBox(physics, box));
+    this.grabbables = [
+      ...this.objects.filter((_, i) => data.boxes[i].grabbable).map(({ body, collider }) => ({ body, collider, fixed: false })),
+      ...data.branches.map((branch) => addBranch(physics, branch)),
+    ];
     this.applyMaterials(config);
   }
 
@@ -49,6 +56,12 @@ export class Room {
     this.surfaces.set(collider.handle, surface);
     return collider;
   }
+}
+
+function addBranch(physics: PhysicsWorld, { x, y, length, thickness }: BranchData): Grabbable {
+  const body = physics.raw.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(x, y));
+  const desc = RAPIER.ColliderDesc.cuboid(length / 2, thickness / 2).setCollisionGroups(collisionGroups('Branch'));
+  return { body, collider: physics.raw.createCollider(desc, body), fixed: true };
 }
 
 function addBox(physics: PhysicsWorld, { x, y, width, height, angle }: BoxData): SimObject {
