@@ -1,10 +1,12 @@
-# main에 푸시하면 테스트하고 빌드해서 GitHub Pages에 올린다.
+# main은 사이트 루트에(팀이 보는 주소), dev는 dev/ 폴더에(개발자가 확인하는 주소) 한 번에 올린다.
+# 어느 쪽이든 테스트나 빌드가 실패하면 배포하지 않고, 이전 배포가 그대로 남는다.
 # 저장소 Settings의 Pages에서 Source가 "GitHub Actions"여야 한다.
 name: deploy
 
 on:
   push:
     branches: [main]
+  # dev에 푸시하면 deploy-dev.yml이 이 워크플로를 main에서 부른다
   workflow_dispatch:
 
 permissions:
@@ -19,16 +21,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
+          path: main
+
+      - name: dev 브랜치가 있는지 확인
+        id: dev
+        working-directory: main
+        run: |
+          # ls-remote는 브랜치가 없으면 2로 끝난다. 다른 오류는 그대로 실패시킨다.
+          code=0
+          git ls-remote --exit-code --heads origin refs/heads/dev || code=$?
+          if [ "$code" -eq 0 ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [ "$code" -eq 2 ]; then
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          else
+            exit "$code"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.dev.outputs.exists == 'true'
+        with:
+          ref: dev
+          path: dev
+
       - uses: actions/setup-node@v7
         with:
           node-version: 26
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+          cache-dependency-path: '*/package-lock.json'
+
+      - name: main 빌드
+        working-directory: main
+        env:
+          CHANNEL: main
+        run: npm ci && npm test && npm run build
+
+      - name: dev 빌드
+        if: steps.dev.outputs.exists == 'true'
+        working-directory: dev
+        env:
+          CHANNEL: dev
+        run: npm ci && npm test && npm run build
+
+      - name: 사이트 폴더로 모으기
+        run: |
+          cp -r main/dist site
+          if [ -d dev/dist ]; then cp -r dev/dist site/dev; fi
+
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build

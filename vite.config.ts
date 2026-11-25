@@ -10,11 +10,13 @@ function commitHash(): string {
   }
 }
 
-export default defineConfig(({ command }) => ({
+/** 어느 주소의 빌드인지. 배포할 때 deploy.yml이 main이나 dev를 넣고, 이 PC에서 띄우면 local이다. */
+const channel = process.env.CHANNEL || 'local';
+
+export default defineConfig({
   base: './',
   define: {
-    // 개발 서버는 아직 커밋하지 않은 코드일 수 있어 뒤에 -dev를 붙인다
-    __BUILD_VERSION__: JSON.stringify(command === 'serve' ? `${commitHash()}-dev` : commitHash()),
+    __BUILD_VERSION__: JSON.stringify(`${channel} ${commitHash()}`),
   },
   build: {
     // Phaser와 Rapier(WASM 포함)가 커서 기본 경고 기준(500kB)을 늘 넘는다
@@ -24,4 +26,4 @@ export default defineConfig(({ command }) => ({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
   },
-}));
+});

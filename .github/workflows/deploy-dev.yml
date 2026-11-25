@@ -1,0 +1,17 @@
+# github-pages 환경이 main에서 도는 배포만 받으므로, dev에서는 배포하지 않고 main의 deploy.yml을 부른다.
+name: deploy-dev
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh workflow run deploy.yml --ref main --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}
