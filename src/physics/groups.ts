@@ -25,3 +25,8 @@ const COLLIDES_WITH: Record<GroupName, number> = {
 export function collisionGroups(name: GroupName): number {
   return ((Group[name] << 16) | COLLIDES_WITH[name]) >>> 0;
 }
+
+/** 토리가 디딜 바닥을 찾는 레이캐스트용. 몸, 꼬리, 감지 영역은 맞지 않는다. */
+export function groundProbeGroups(): number {
+  return ((Group.Body << 16) | Group.Terrain | Group.Prop) >>> 0;
+}

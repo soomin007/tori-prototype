@@ -52,8 +52,8 @@ describe('공유 링크', () => {
   });
 
   it('범위를 벗어난 값은 범위 안으로 자른다', () => {
-    const { config } = parseShare(cfg({ 'physics.solverIterations': 1e9, 'testBoxes.count': 2.4 }));
+    const { config } = parseShare(cfg({ 'physics.solverIterations': 1e9, 'physics.maxStepsPerFrame': 2.4 }));
     expect(config.physics.solverIterations).toBe(PARAM_META['physics.solverIterations'].max);
-    expect(config.testBoxes.count).toBe(2);
+    expect(config.physics.maxStepsPerFrame).toBe(2);
   });
 });

@@ -13,19 +13,85 @@ export const PPM = 100;
 export const VIEW_WIDTH = 1280;
 export const VIEW_HEIGHT = 720;
 
-/** M0 확인용 방(미터, 자리값). M1에서 rooms/rooms.ts의 방 데이터로 바꾼다. */
-export const M0_ROOM = {
-  width: 12.8,
-  height: 7.2,
-  floorThickness: 0.6,
-  wallThickness: 0.3,
-  /** 화면 위에서 떨어지는 상자가 벽을 넘지 않게 벽을 위로 더 올리는 높이 */
-  wallExtraHeight: 80,
-};
-
 // ---- 튜닝 패널에서 바꾸는 값 ----
 
 export interface GameConfig {
+  move: {
+    maxSpeed: number;
+    accel: number;
+    decel: number;
+    airControl: number;
+    lever: number;
+    turnSeconds: number;
+  };
+  jump: {
+    speed: number;
+    floatOffSeconds: number;
+    coyoteSeconds: number;
+    bufferSeconds: number;
+  };
+  upright: {
+    strength: number;
+    damping: number;
+    airFactor: number;
+    slopeFollow: number;
+    slopeSmoothSeconds: number;
+    maxSlopeDeg: number;
+  };
+  float: {
+    clearance: number;
+    reach: number;
+    frequency: number;
+    dampingRatio: number;
+    pullDown: number;
+    probeSpread: number;
+    edgeLean: number;
+  };
+  torso: {
+    length: number;
+    thickness: number;
+    mass: number;
+    friction: number;
+  };
+  head: {
+    radius: number;
+    mass: number;
+    neckX: number;
+    neckY: number;
+    forward: number;
+    up: number;
+    stiffness: number;
+    damping: number;
+    limitDeg: number;
+  };
+  legs: {
+    frontX: number;
+    hindX: number;
+    hipY: number;
+    upper: number;
+    lower: number;
+    thickness: number;
+    stride: number;
+    stepSeconds: number;
+    lift: number;
+  };
+  ground: {
+    friction: number;
+    slipperyAccel: number;
+    slipperyDecel: number;
+  };
+  props: {
+    density: number;
+    friction: number;
+    restitution: number;
+  };
+  camera: {
+    followSeconds: number;
+    followSecondsY: number;
+    lookAhead: number;
+    lookSeconds: number;
+    offsetY: number;
+  };
   physics: {
     gravity: number;
     solverIterations: number;
@@ -34,36 +100,93 @@ export interface GameConfig {
   view: {
     interpolate: boolean;
   };
-  ground: {
-    friction: number;
-  };
-  testBoxes: {
-    count: number;
-    size: number;
-    density: number;
-    friction: number;
-    restitution: number;
-  };
 }
 
+/** 근거를 적지 않은 값은 모두 자리값이고, PLAN에서 온 값도 자리값이다. 길이는 m, 시간은 초다. */
 export const DEFAULTS: GameConfig = {
+  move: {
+    maxSpeed: 4, // m/s
+    accel: 9, // m/s². 4m/s까지 약 0.45초
+    decel: 7, // m/s². 4m/s에서 약 1.1m 미끄러진다
+    airControl: 0.6, // 공중에서 가속과 감속에 곱한다
+    lever: 0.25, // 몸통 중심보다 이만큼 아래에 이동 힘을 준다. 출발할 때 앞이 들리고 멈출 때 앞으로 쏠린다
+    turnSeconds: 0.2, // 머리와 그림이 반대쪽으로 넘어가는 시간. PLAN 7.2의 꼬리 밑동과 같은 값
+  },
+  jump: {
+    speed: 5.2, // m/s. 중력 9.81에서 약 1.4m 뛴다
+    floatOffSeconds: 0.15, // PLAN 7.2
+    coyoteSeconds: 0.1, // PLAN 7.2
+    bufferSeconds: 0.1, // PLAN 7.2
+  },
+  upright: {
+    strength: 40, // N·m/rad
+    damping: 2.5, // N·m·s/rad
+    airFactor: 0.4, // 공중에서 세기와 감쇠에 곱한다
+    slopeFollow: 0.7, // 0이면 늘 수평, 1이면 경사와 나란히 선다
+    slopeSmoothSeconds: 0.08, // 계단에서 경사 값이 튀는 것을 고른다
+    maxSlopeDeg: 50, // 이보다 가파르면 경사로 보지 않는다
+  },
+  float: {
+    clearance: 0.25, // 몸통 아랫면과 바닥 사이. PLAN 7.2
+    reach: 0.2, // 띄우는 높이보다 이만큼 더 떨어져도 바닥을 잡는다
+    frequency: 3.2, // Hz. 스프링의 빠르기
+    dampingRatio: 0.6, // 1이면 출렁이지 않는다
+    pullDown: 5, // m/s². 바닥에서 떠오를 때 도로 당기는 가속의 상한
+    probeSpread: 0.35, // 몸통 중심에서 앞뒤 레이캐스트까지
+    edgeLean: 0.4, // 일부만 바닥 위에 있을 때 빈 쪽으로 기우는 정도
+  },
+  torso: {
+    length: 1, // PLAN 7.2
+    thickness: 0.4, // PLAN 7.2
+    mass: 3, // kg, PLAN 7.2
+    friction: 0.1, // 벽과 턱에 들러붙지 않게 작게 둔다
+  },
+  head: {
+    radius: 0.17,
+    mass: 0.4, // kg
+    neckX: 0.42, // 몸통 중심에서 목까지 앞쪽 거리
+    neckY: 0.1, // 몸통 중심에서 목까지 위쪽 거리
+    forward: 0.14, // 목에서 머리 중심까지 앞쪽 거리
+    up: 0.1, // 목에서 머리 중심까지 위쪽 거리
+    stiffness: 220, // 1/s². 목이 제자리로 돌아오는 세기
+    damping: 8, // 1/s
+    limitDeg: 35, // 목이 꺾이는 한계
+  },
+  legs: {
+    frontX: 0.3, // 몸통 중심에서 앞다리까지
+    hindX: 0.3, // 몸통 중심에서 뒷다리까지
+    hipY: 0.06, // 몸통 중심보다 이만큼 아래에 붙는다
+    upper: 0.24,
+    lower: 0.24,
+    thickness: 0.11,
+    stride: 0.2, // 발이 제자리에서 이만큼 벗어나면 다시 딛는다
+    stepSeconds: 0.1,
+    lift: 0.1, // 발을 옮길 때 드는 높이
+  },
+  ground: {
+    friction: 0.8, // 물건과 꼬리가 바닥에 닿을 때의 마찰. 토리의 이동에는 쓰지 않는다
+    slipperyAccel: 0.2, // PLAN 7.2. 미끄러운 바닥에서 가속에 곱한다
+    slipperyDecel: 0.2, // PLAN 7.2. 미끄러운 바닥에서 감속에 곱한다
+  },
+  props: {
+    density: 1, // kg/m²
+    friction: 0.6,
+    restitution: 0.1,
+  },
+  camera: {
+    followSeconds: 0.12, // 0에 가까울수록 바로 따라간다
+    followSecondsY: 0.35,
+    lookAhead: 0.8, // 가는 쪽을 이만큼 더 보여 준다
+    lookSeconds: 0.5, // 돌아섰을 때 보여 주는 쪽이 넘어가는 시간
+    offsetY: 1.6, // 토리보다 이만큼 위를 화면 가운데에 둔다
+  },
   physics: {
-    gravity: 9.81, // m/s², 아래쪽. 자리값
+    gravity: 9.81, // m/s², 아래쪽
     solverIterations: 16, // Rapier 기본값 4로는 꼬리가 늘어난다(known-issues 1번)
     maxStepsPerFrame: 5, // 이보다 밀린 시간은 버린다
   },
   view: {
     interpolate: true,
-  },
-  ground: {
-    friction: 0.8, // 자리값
-  },
-  testBoxes: {
-    count: 6, // 자리값
-    size: 0.6, // m, 자리값
-    density: 1, // kg/m², 자리값
-    friction: 0.6, // 자리값
-    restitution: 0.1, // 자리값
   },
 };
 
@@ -79,25 +202,86 @@ export interface ParamMeta {
 
 /** 키는 DEFAULTS의 경로다. 빠진 항목이 있으면 테스트가 실패한다. */
 export const PARAM_META: Record<string, ParamMeta> = {
+  'move.maxSpeed': { label: '최고 속도 (m/s)', min: 0.5, max: 10, step: 0.1 },
+  'move.accel': { label: '가속 (m/s²)', min: 0.5, max: 60, step: 0.5 },
+  'move.decel': { label: '감속 (m/s²)', min: 0.5, max: 60, step: 0.5 },
+  'move.airControl': { label: '공중 조작 배율', min: 0, max: 1.5, step: 0.05 },
+  'move.lever': { label: '출발과 정지 쏠림 (m)', min: 0, max: 0.8, step: 0.01 },
+  'move.turnSeconds': { label: '방향 전환 (초)', min: 0.05, max: 1, step: 0.01 },
+  'jump.speed': { label: '점프 속도 (m/s)', min: 1, max: 12, step: 0.1 },
+  'jump.floatOffSeconds': { label: '뛴 뒤 띄우기 끄기 (초)', min: 0, max: 0.5, step: 0.01 },
+  'jump.coyoteSeconds': { label: '떨어진 뒤 점프 허용 (초)', min: 0, max: 0.5, step: 0.01 },
+  'jump.bufferSeconds': { label: '착지 전 점프 기억 (초)', min: 0, max: 0.5, step: 0.01 },
+  'upright.strength': { label: '직립 세기 (N·m/rad)', min: 0, max: 150, step: 1 },
+  'upright.damping': { label: '직립 감쇠', min: 0, max: 10, step: 0.1 },
+  'upright.airFactor': { label: '공중 직립 배율', min: 0, max: 1, step: 0.05 },
+  'upright.slopeFollow': { label: '경사 따라 눕기', min: 0, max: 1, step: 0.05 },
+  'upright.slopeSmoothSeconds': { label: '경사 고르기 (초)', min: 0, max: 0.5, step: 0.01 },
+  'upright.maxSlopeDeg': { label: '경사로 보는 한계 (도)', min: 10, max: 70, step: 1 },
+  'float.clearance': { label: '띄우는 높이 (m)', min: 0.05, max: 0.8, step: 0.01 },
+  'float.reach': { label: '바닥 잡는 거리 (m)', min: 0.02, max: 0.6, step: 0.01 },
+  'float.frequency': { label: '스프링 빠르기 (Hz)', min: 0.5, max: 6, step: 0.1 },
+  'float.dampingRatio': { label: '스프링 감쇠비', min: 0, max: 1.5, step: 0.05 },
+  'float.pullDown': { label: '바닥으로 당기기 (m/s²)', min: 0, max: 40, step: 0.5 },
+  'float.probeSpread': { label: '앞뒤 감지 간격 (m)', min: 0, max: 0.8, step: 0.01 },
+  'float.edgeLean': { label: '발판 끝 기울기', min: 0, max: 1, step: 0.05 },
+  'torso.length': { label: '길이 (m)', min: 0.5, max: 2, step: 0.05, rebuild: true },
+  'torso.thickness': { label: '굵기 (m)', min: 0.2, max: 0.5, step: 0.01, rebuild: true },
+  'torso.mass': { label: '질량 (kg)', min: 0.5, max: 20, step: 0.1, rebuild: true },
+  'torso.friction': { label: '마찰', min: 0, max: 2, step: 0.01 },
+  'head.radius': { label: '반지름 (m)', min: 0.05, max: 0.4, step: 0.01, rebuild: true },
+  'head.mass': { label: '질량 (kg)', min: 0.05, max: 3, step: 0.05, rebuild: true },
+  'head.neckX': { label: '목 앞쪽 거리 (m)', min: 0, max: 1, step: 0.01, rebuild: true },
+  'head.neckY': { label: '목 위쪽 거리 (m)', min: -0.5, max: 0.5, step: 0.01, rebuild: true },
+  'head.forward': { label: '머리 앞쪽 거리 (m)', min: -0.5, max: 0.5, step: 0.01, rebuild: true },
+  'head.up': { label: '머리 위쪽 거리 (m)', min: -0.5, max: 0.5, step: 0.01, rebuild: true },
+  'head.stiffness': { label: '목 세기', min: 0, max: 1000, step: 10 },
+  'head.damping': { label: '목 감쇠', min: 0, max: 60, step: 0.5 },
+  'head.limitDeg': { label: '목 꺾임 한계 (도)', min: 0, max: 120, step: 1 },
+  'legs.frontX': { label: '앞다리 거리 (m)', min: 0, max: 1, step: 0.01, rebuild: true },
+  'legs.hindX': { label: '뒷다리 거리 (m)', min: 0, max: 1, step: 0.01, rebuild: true },
+  'legs.hipY': { label: '다리 붙는 높이 (m)', min: -0.3, max: 0.3, step: 0.01, rebuild: true },
+  'legs.upper': { label: '윗다리 길이 (m)', min: 0.1, max: 0.6, step: 0.01, rebuild: true },
+  'legs.lower': { label: '아랫다리 길이 (m)', min: 0.1, max: 0.6, step: 0.01, rebuild: true },
+  'legs.thickness': { label: '다리 굵기 (m)', min: 0.04, max: 0.3, step: 0.01, rebuild: true },
+  'legs.stride': { label: '보폭 (m)', min: 0.05, max: 0.5, step: 0.01 },
+  'legs.stepSeconds': { label: '한 걸음 (초)', min: 0.03, max: 0.5, step: 0.01 },
+  'legs.lift': { label: '발 드는 높이 (m)', min: 0, max: 0.4, step: 0.01 },
+  'ground.friction': { label: '바닥 마찰 (물건, 꼬리)', min: 0, max: 2, step: 0.01 },
+  'ground.slipperyAccel': { label: '미끄러운 바닥 가속 배율', min: 0.02, max: 1, step: 0.02 },
+  'ground.slipperyDecel': { label: '미끄러운 바닥 감속 배율', min: 0.02, max: 1, step: 0.02 },
+  'props.density': { label: '밀도', min: 0.1, max: 10, step: 0.1 },
+  'props.friction': { label: '마찰', min: 0, max: 2, step: 0.01 },
+  'props.restitution': { label: '탄성', min: 0, max: 1, step: 0.01 },
+  'camera.followSeconds': { label: '가로 따라가기 (초)', min: 0, max: 1, step: 0.01 },
+  'camera.followSecondsY': { label: '세로 따라가기 (초)', min: 0, max: 1, step: 0.01 },
+  'camera.lookAhead': { label: '가는 쪽 더 보기 (m)', min: 0, max: 4, step: 0.1 },
+  'camera.lookSeconds': { label: '더 보기 넘어가기 (초)', min: 0, max: 2, step: 0.05 },
+  'camera.offsetY': { label: '위쪽 더 보기 (m)', min: -2, max: 3, step: 0.1 },
   'physics.gravity': { label: '중력 (m/s²)', min: 0, max: 30, step: 0.01 },
   'physics.solverIterations': { label: '솔버 반복', min: 1, max: 64, step: 1 },
   'physics.maxStepsPerFrame': { label: '프레임당 최대 스텝', min: 1, max: 10, step: 1 },
   'view.interpolate': { label: '보간 그리기' },
-  'ground.friction': { label: '바닥 마찰', min: 0, max: 2, step: 0.01 },
-  'testBoxes.count': { label: '상자 수', min: 1, max: 30, step: 1, rebuild: true },
-  'testBoxes.size': { label: '상자 크기 (m)', min: 0.2, max: 1.5, step: 0.05, rebuild: true },
-  'testBoxes.density': { label: '상자 밀도', min: 0.1, max: 10, step: 0.1 },
-  'testBoxes.friction': { label: '상자 마찰', min: 0, max: 2, step: 0.01 },
-  'testBoxes.restitution': { label: '상자 탄성', min: 0, max: 1, step: 0.01 },
 };
 
 /** 튜닝 패널의 묶음 이름. 키는 DEFAULTS의 첫 단계 이름이다. */
 export const GROUP_LABELS: Record<keyof GameConfig, string> = {
+  move: '이동',
+  jump: '점프',
+  upright: '직립',
+  float: '띄우기',
+  torso: '몸통',
+  head: '머리',
+  legs: '다리 그림',
+  ground: '바닥',
+  props: '물건',
+  camera: '카메라',
   physics: '물리',
   view: '화면',
-  ground: '바닥',
-  testBoxes: '확인용 상자',
 };
+
+/** 패널을 열었을 때 펼쳐 둘 묶음. 나머지는 접어 둔다. */
+export const OPEN_GROUPS: readonly (keyof GameConfig)[] = ['move', 'jump', 'upright'];
 
 // ---- 경로로 값을 읽고 쓰는 도우미 ----
 

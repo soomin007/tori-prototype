@@ -1,13 +1,20 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { cloneConfig, DEFAULTS, FIXED_DT, M0_ROOM } from '../src/config/defaults';
+import { cloneConfig, DEFAULTS, FIXED_DT } from '../src/config/defaults';
 import { FixedStepper, initPhysics, lerpAngle } from '../src/physics/world';
 import { createInputState } from '../src/sim/inputState';
 import { Simulation } from '../src/sim/simulation';
-import type { SimObject } from '../src/sim/simulation';
+import { box, ground, room } from './testRooms';
 
 beforeAll(() => initPhysics());
 
-const boxesOf = (sim: Simulation): SimObject[] => sim.objects.filter((o) => o.kind === 'box');
+const SIZE = 0.6;
+const WALL = 10;
+/** 토리와 떨어진 자리에 세 줄로 어긋나게 쌓아, 떨어지면서 서로 부딪히게 한다 */
+const BOXES = Array.from({ length: 6 }, (_, i) => {
+  const x = 12 + ((i % 3) - 1) * SIZE * 0.8 + (i % 2) * SIZE * 0.25;
+  return box(x, -1 - i * SIZE * 1.4, SIZE, i * 0.35);
+});
+const BOX_ROOM = room([ground(0, 8), ground(8, 9, WALL), ground(9, 15), ground(15, 16, WALL)], BOXES);
 
 function runSeconds(sim: Simulation, seconds: number): void {
   const input = createInputState();
@@ -16,43 +23,42 @@ function runSeconds(sim: Simulation, seconds: number): void {
 
 describe('헤드리스 물리', () => {
   it('상자가 바닥에 떨어져 멈춘다', () => {
-    const sim = new Simulation(cloneConfig(DEFAULTS));
-    const boxes = boxesOf(sim);
-    expect(boxes).toHaveLength(DEFAULTS.testBoxes.count);
+    const sim = new Simulation(cloneConfig(DEFAULTS), BOX_ROOM);
+    const boxes = sim.objects;
+    expect(boxes).toHaveLength(BOXES.length);
 
-    const startY = boxes.map((box) => box.body.translation().y);
+    const startY = boxes.map(({ body }) => body.translation().y);
     runSeconds(sim, 8);
 
-    const floorTop = M0_ROOM.height - M0_ROOM.floorThickness;
-    boxes.forEach((box, i) => {
-      const { x, y } = box.body.translation();
-      const { x: vx, y: vy } = box.body.linvel();
+    boxes.forEach(({ body, height }, i) => {
+      const { x, y } = body.translation();
+      const { x: vx, y: vy } = body.linvel();
       expect(y).toBeGreaterThan(startY[i]);
       // 바닥을 뚫지 않고(1cm까지 봐준다) 벽 안에 있다
-      expect(y).toBeLessThanOrEqual(floorTop - box.height / 2 + 0.01);
-      expect(x).toBeGreaterThan(M0_ROOM.wallThickness);
-      expect(x).toBeLessThan(M0_ROOM.width - M0_ROOM.wallThickness);
+      expect(y).toBeLessThanOrEqual(-height / 2 + 0.01);
+      expect(x).toBeGreaterThan(9);
+      expect(x).toBeLessThan(15);
       expect(Math.hypot(vx, vy)).toBeLessThan(0.01);
-      expect(Math.abs(box.body.angvel())).toBeLessThan(0.01);
+      expect(Math.abs(body.angvel())).toBeLessThan(0.01);
     });
     // 적어도 하나는 바닥에 닿아 있다
-    const lowest = Math.max(...boxes.map((box) => box.body.translation().y));
-    expect(lowest).toBeCloseTo(floorTop - DEFAULTS.testBoxes.size / 2, 1);
+    const lowest = Math.max(...boxes.map(({ body }) => body.translation().y));
+    expect(lowest).toBeCloseTo(-SIZE / 2, 1);
   });
 
   it('멈춰 잠든 상자도 중력을 바꾸면 바로 반응한다', () => {
     const config = cloneConfig(DEFAULTS);
-    const sim = new Simulation(config);
+    const sim = new Simulation(config, BOX_ROOM);
     runSeconds(sim, 10);
-    const [box] = boxesOf(sim);
-    expect(box.body.isSleeping()).toBe(true);
+    const { body } = sim.objects[0];
+    expect(body.isSleeping()).toBe(true);
 
     // 패널 범위(0 이상)에는 없는 값이지만, 잠에서 깨는지는 위로 띄워야 드러난다
     config.physics.gravity = -5;
     sim.applyConfig();
-    const before = box.body.translation().y;
+    const before = body.translation().y;
     runSeconds(sim, 0.5);
-    expect(box.body.translation().y).toBeLessThan(before - 0.1);
+    expect(body.translation().y).toBeLessThan(before - 0.1);
   });
 });
 
