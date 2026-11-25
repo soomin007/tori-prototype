@@ -81,7 +81,7 @@ export interface ParamMeta {
 export const PARAM_META: Record<string, ParamMeta> = {
   'physics.gravity': { label: '중력 (m/s²)', min: 0, max: 30, step: 0.01 },
   'physics.solverIterations': { label: '솔버 반복', min: 1, max: 64, step: 1 },
-  'physics.maxStepsPerFrame': { label: '프레임당 스텝', min: 1, max: 10, step: 1 },
+  'physics.maxStepsPerFrame': { label: '프레임당 최대 스텝', min: 1, max: 10, step: 1 },
   'view.interpolate': { label: '보간 그리기' },
   'ground.friction': { label: '바닥 마찰', min: 0, max: 2, step: 0.01 },
   'testBoxes.count': { label: '상자 수', min: 1, max: 30, step: 1, rebuild: true },
