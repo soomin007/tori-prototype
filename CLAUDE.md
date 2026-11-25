@@ -1,8 +1,10 @@
 # 토리 프로토타입
 
-시리어스 게임 수업 기말 팀 프로젝트의 조작 테스트용 뼈대다. 2D 횡스크롤에서 꼬리가 달린 도마뱀 토리를 몸은 키보드로, 꼬리는 조작안에 따라 마우스나 키로 다룬다. 기획은 아직 확정 전이다.
+시리어스 게임 수업 기말 팀 프로젝트의 조작 테스트용 뼈대다. 2D 횡스크롤에서 꼬리가 달린 도마뱀 토리를 몸은 키보드로, 꼬리는 조작 방식에 따라 마우스나 키로 다룬다. 기획은 아직 확정 전이다.
 
-전체 계획과 마일스톤은 `docs/PLAN.md`에 있다. 작업 전에 반드시 읽고, 마일스톤 순서대로 하나씩 진행한다.
+전체 계획과 마일스톤은 `docs/PLAN.md`에 있다. 작업 전에 10절에서 지금 마일스톤을 찾아 읽고, 거기서 가리키는 7절 항목을 읽는다. 마일스톤 순서대로 하나씩 진행한다. 발표는 2026년 12월 14일 주이고 날짜별 일정은 10절에 있다.
+
+다시 밟기 쉬운 함정은 `known-issues.md`에 있다. 코드를 쓰기 전에 제목 줄을 훑는다.
 
 ## 명령어
 
@@ -13,17 +15,19 @@
 
 ## 스택
 
-TypeScript, Vite, Phaser 4(4.1 이상), Rapier 2D(`@dimforge/rapier2d-compat`), lil-gui, Vitest. `main`에 푸시하면 GitHub Actions가 GitHub Pages로 배포한다.
+TypeScript, Vite, Phaser 4(4.1 이상), Rapier 2D(`@dimforge/rapier2d-compat`), lil-gui, Vitest. `main`에 푸시하면 GitHub Actions가 GitHub Pages로 배포한다. 버전과 고른 이유는 `docs/PLAN.md` 5절에 있다.
+
+이 프로젝트는 전역 규칙 "웹 게임에 npm, 번들러, 프레임워크를 들이지 않는다"의 예외다(2026-11-25 결정). 물리 엔진이 WASM이고, 헤드리스 물리 테스트와 타입 검사로 결과를 기계가 검증해야 하기 때문이다.
 
 ## 반드시 지킬 것
 
 1. 스토리, 대사, 세계관 설정, 새 인물 이름을 지어내지 않는다. 화면에 나오는 글은 자리표시(`NPC 대사 1`, `아이템 A`)만 쓴다. 기획은 다른 팀원이 정한다.
 2. 기획이 정하지 않은 규칙은 코드에 박지 않는다. 설정값이나 데이터 파일(`src/config/`, `src/state/schema.ts`)로 빼고, 기본값이 자리값이라는 걸 주석으로 남긴다.
-3. 꼬리 조작안 A(마우스 직접)와 B(자동 + 키)는 같은 완성도로 유지한다. 한쪽만 다듬지 않는다. 팀이 둘을 직접 비교해서 고를 예정이다.
+3. 꼬리 조작 방식 A(마우스 직접)와 B(자동 + 키)는 팀이 하나를 고를 때까지 같은 완성도로 유지한다. 한쪽만 다듬지 않는다. 팀이 M2 뒤 회의에서 둘을 직접 비교해서 고른다.
 4. 물리는 Rapier만 쓴다. Phaser의 Arcade, Matter 물리는 켜지 않는다. 물리 단위는 미터이고, 화면 변환은 `PPM` 상수 하나로 한다.
-5. 시뮬레이션과 그리기를 나눈다. `src/physics/`, `src/tori/`, `src/state/`는 Phaser를 import하지 않는다. 입력은 `InputState` 객체로 받는다. 그래야 Node에서 헤드리스로 테스트할 수 있다.
+5. 시뮬레이션과 그리기를 나눈다. `src/physics/`, `src/tori/`, `src/state/`, `src/sim/`, `src/rooms/`, `src/config/`는 Phaser를 import하지 않는다. 입력은 `InputState` 객체로 받는다. 그래야 Node에서 헤드리스로 테스트할 수 있다.
 6. 수치(속도, 힘, 마디 수, 관절 강성 등)는 전부 `src/config/`에 두고 튜닝 패널에 노출한다.
-7. Phaser 3 예제를 그대로 옮기지 않는다. v4에서 바뀐 API가 있다(예: v4에서 `setTintFill()`은 아무 일도 하지 않고 `setTintMode()`를 쓴다). 헷갈리면 Phaser 공식 저장소의 `skills/` 폴더와 v3→v4 마이그레이션 가이드를 확인한다.
+7. Phaser 3 예제를 그대로 옮기지 않는다. v4에서 바뀐 API가 있다(예: v4에서 `setTintFill()`은 아무 일도 하지 않고 콘솔 오류만 낸다. `setTint(color).setTintMode(Phaser.TintModes.FILL)`을 쓴다). Phaser API를 처음 쓰는 자리에서는 패키지에 들어 있는 `node_modules/phaser/skills/`의 해당 폴더와 `v3-to-v4-migration/SKILL.md`를 먼저 확인한다.
 
 ## 마일스톤이 끝날 때마다
 
@@ -39,4 +43,4 @@ TypeScript, Vite, Phaser 4(4.1 이상), Rapier 2D(`@dimforge/rapier2d-compat`), 
 
 - 개발자는 한 명이고, 결과물을 직접 플레이해서 판단한다. 긴 설계 설명보다 실행 가능한 결과와 확인 목록이 낫다.
 - 막히면(물리가 불안정하다거나) 우회책 2개를 짧게 비교해서 고르게 한다.
-- 커밋은 작게 나눈다.
+- 커밋은 작게 나눈다. 작업은 마일스톤 브랜치(`m0-setup` 같은 이름)에서 하고, 손으로 확인까지 끝나면 `main`에 합친다. `main`은 팀원이 보는 링크와 같다.
