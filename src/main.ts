@@ -8,7 +8,8 @@ import { StartScene } from './scenes/StartScene';
 
 async function start(): Promise<void> {
   await initPhysics();
-  const session = parseShare(location.search);
+  // 팀용 주소(main)의 빌드는 디버그 키를 끈 채로 연다. 주소에 ?debug=1을 붙이면 켜진다(PLAN 7.10).
+  const session = parseShare(location.search, !__BUILD_VERSION__.startsWith('main'));
   new Phaser.Game({
     type: Phaser.WEBGL,
     backgroundColor: '#20262d',

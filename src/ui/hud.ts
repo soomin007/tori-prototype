@@ -1,7 +1,7 @@
 import type { Scheme } from '../config/presets';
 import type { Dialogue } from '../sim/recorder';
 import type { SystemCommands } from '../view/inputReader';
-import { COMMON_KEYS, keyList, SCHEME_GUIDES, SYSTEM_KEYS } from './controlsGuide';
+import { COMMON_KEYS, keyList, SCHEME_GUIDES, systemKeys } from './controlsGuide';
 import { button as makeButton, element } from './dom';
 
 const TOAST_MS = 2500;
@@ -25,6 +25,7 @@ const BUTTONS: { name: ToggleName; command: 'toggleDebug' | 'togglePanel' | 'tog
 /** 화면 구석의 단추, 빌드 버전, 도움말, 일시정지 창, 짧은 알림, 대화 상자. 게임 화면 위에 DOM으로 올린다. */
 export class Hud {
   private readonly root: HTMLElement;
+  private readonly debug: boolean;
   private readonly pausePanel = element('div', 'hud-pause');
   private readonly buttons = new Map<ToggleName, HTMLButtonElement>();
   private readonly status = element('div', 'hud-status');
@@ -45,8 +46,10 @@ export class Hud {
   private shownCount: number | null = null;
   private toastTimer = 0;
 
-  constructor(root: HTMLElement, commands: SystemCommands) {
+  /** debug가 꺼져 있으면 도움말의 디버그 키와 일시정지 창의 "처음부터"를 뺀다(PLAN 7.10) */
+  constructor(root: HTMLElement, commands: SystemCommands, debug: boolean) {
     this.root = root;
+    this.debug = debug;
     const bar = element('div', 'hud-bar');
     for (const { name, command, label, key, tooltip } of BUTTONS) {
       const button = element('button', 'hud-button');
@@ -59,12 +62,9 @@ export class Hud {
       bar.append(button);
     }
 
-    this.pausePanel.append(
-      element('h2', '', '일시정지'),
-      makeButton('계속하기', 'hud-button', () => commands.togglePause()),
-      makeButton('처음부터', 'hud-button', () => commands.restartRoom()),
-      makeButton('첫 화면으로', 'hud-button', () => commands.toStart()),
-    );
+    this.pausePanel.append(element('h2', '', '일시정지'), makeButton('계속하기', 'hud-button', () => commands.togglePause()));
+    if (debug) this.pausePanel.append(makeButton('처음부터', 'hud-button', () => commands.restartRoom()));
+    this.pausePanel.append(makeButton('첫 화면으로', 'hud-button', () => commands.toStart()));
     this.pausePanel.hidden = true;
     this.help.hidden = true;
     this.toast.hidden = true;
@@ -184,7 +184,7 @@ export class Hud {
       element('p', '', summary),
       keyList(keys),
       element('h3', '', '화면'),
-      keyList(SYSTEM_KEYS),
+      keyList(systemKeys(this.debug)),
     );
   }
 

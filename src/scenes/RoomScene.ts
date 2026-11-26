@@ -72,7 +72,7 @@ export class RoomScene extends Phaser.Scene {
       goToRoom: (room) => this.goToRoom(room),
       toStart: () => this.scene.start('Start'),
     };
-    this.hud = new Hud(document.getElementById('hud') as HTMLElement, commands);
+    this.hud = new Hud(document.getElementById('hud') as HTMLElement, commands, session.debug);
     this.panel = new TuningPanel(session, {
       // 몸의 치수를 바꿔도 자른 꼬리와 회귀 횟수는 그대로 둔다
       onParamChange: (meta) => (meta.rebuild ? this.sim.rebuild() : this.sim.applyConfig()),
@@ -85,7 +85,7 @@ export class RoomScene extends Phaser.Scene {
       notify: (message) => this.hud.notify(message),
       showCopyFallback: (text) => this.hud.showCopyFallback(text),
     });
-    this.reader = new InputReader(this.game.canvas, commands, () => this.wantsPointerLock());
+    this.reader = new InputReader(this.game.canvas, commands, () => this.wantsPointerLock(), session.debug);
     this.showStatus();
     if (missing !== null) this.notifyMissing(missing);
 

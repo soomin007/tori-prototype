@@ -31,6 +31,9 @@ const LETTER_COMMANDS: Record<string, SimpleCommand> = {
 
 const ROOM_KEYS: Record<string, number> = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4 };
 
+/** 플레이를 망칠 수 있는 디버그 키(PLAN 7.10). 디버그 키를 끄면 아무 일도 하지 않는다. */
+const DEBUG_CODES = new Set(['KeyQ', 'KeyR', ...Object.keys(ROOM_KEYS)]);
+
 /** 브라우저가 Esc로 포인터 잠금을 풀면서 Esc 키도 보낼 수 있어, 이 시간 안의 Esc는 버린다(ms) */
 const UNLOCK_ESCAPE_MS = 300;
 
@@ -57,13 +60,15 @@ export class InputReader {
   private readonly canvas: HTMLCanvasElement;
   private readonly commands: SystemCommands;
   private readonly wantsLock: () => boolean;
+  private readonly debugKeys: boolean;
   private unlockedAt = -Infinity;
 
-  /** wantsLock은 지금 포인터를 잠가야 하는지(상대 커서)를 알려 준다 */
-  constructor(canvas: HTMLCanvasElement, commands: SystemCommands, wantsLock: () => boolean) {
+  /** wantsLock은 지금 포인터를 잠가야 하는지(상대 커서)를 알려 준다. debugKeys가 거짓이면 Q, R, 숫자 키를 받지 않는다. */
+  constructor(canvas: HTMLCanvasElement, commands: SystemCommands, wantsLock: () => boolean, debugKeys: boolean) {
     this.canvas = canvas;
     this.commands = commands;
     this.wantsLock = wantsLock;
+    this.debugKeys = debugKeys;
 
     const { signal } = this.listeners;
     // 튜닝 패널(lil-gui)이 키 이벤트를 안에서 멈추므로 먼저 받는다(capture)
@@ -125,6 +130,7 @@ export class InputReader {
 
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest('input, textarea, select')) return;
+    if (!this.debugKeys && DEBUG_CODES.has(event.code)) return;
     if (event.code === 'Space' && target?.closest('button')) return;
 
     const room = ROOM_KEYS[event.code];

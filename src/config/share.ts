@@ -9,6 +9,11 @@ export interface Session {
   /** 방 번호 1~4. 아직 없는 방 번호도 링크에는 남는다. */
   room: number;
   config: GameConfig;
+  /**
+   * 디버그 키(Q 자르기, R 처음부터, 숫자 키 방 이동)를 받는지(PLAN 7.10). 수업에 내는 빌드에서는 끈다.
+   * 끄면 이 키들은 아무 일도 하지 않고, 도움말과 일시정지 창에서도 빠진다.
+   */
+  debug: boolean;
 }
 
 export const ROOM_COUNT = 4;
@@ -34,12 +39,17 @@ export function buildShareUrl(pageUrl: string, session: Session): string {
   url.searchParams.set('room', String(session.room));
   const diff = diffConfig(session.config, session.scheme);
   if (Object.keys(diff).length > 0) url.searchParams.set('cfg', encode(diff));
+  if (session.debug) url.searchParams.set('debug', '1');
   return url.toString();
 }
 
-/** 주소의 ? 뒤를 읽는다. 모르는 항목과 깨진 값은 무시하고 기본값을 쓴다. */
-export function parseShare(search: string): Session {
+/**
+ * 주소의 ? 뒤를 읽는다. 모르는 항목과 깨진 값은 무시하고 기본값을 쓴다.
+ * debugDefault는 주소에 debug가 없을 때의 값이다. 팀용 주소(main)는 끄고, 확인용 주소는 켠다(main.ts).
+ */
+export function parseShare(search: string, debugDefault = true): Session {
   const params = new URLSearchParams(search);
+  const flag = params.get('debug');
   const scheme = SCHEMES.find((s) => s === params.get('scheme')?.toUpperCase()) ?? DEFAULT_SCHEME;
   const room = Number(params.get('room'));
   const config = presetConfig(scheme);
@@ -48,6 +58,7 @@ export function parseShare(search: string): Session {
     scheme,
     room: Number.isInteger(room) && room >= 1 && room <= ROOM_COUNT ? room : DEFAULT_ROOM,
     config,
+    debug: flag === '1' ? true : flag === '0' ? false : debugDefault,
   };
 }
 

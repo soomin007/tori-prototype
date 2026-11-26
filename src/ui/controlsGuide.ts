@@ -37,16 +37,25 @@ export const COMMON_KEYS: readonly KeyRow[] = [
   ['E', '말 걸기, 대사 넘기기'],
 ];
 
-/** 개발과 확인용 키. 도움말에만 나온다. */
-export const SYSTEM_KEYS: readonly KeyRow[] = [
+/** 플레이를 망칠 수 있는 디버그 키(PLAN 7.10). 디버그 키를 끄면 도움말에서도 뺀다. */
+const DEBUG_KEYS: readonly KeyRow[] = [
   ['Q 1초 누르기', '꼬리 자르기'],
-  ['1 ~ 3', '방 이동'],
+  ['1 ~ 4', '방 이동'],
   ['R', '처음부터'],
+];
+
+/** 화면을 다루는 키. 도움말에만 나온다. */
+const SCREEN_KEYS: readonly KeyRow[] = [
   ['Esc', '일시정지'],
   ['F1', '물리 디버그'],
   ['F2', '튜닝 패널'],
   ['F3', '도움말'],
 ];
+
+/** 도움말의 "화면" 칸. debug가 꺼져 있으면 디버그 키는 넣지 않는다. */
+export function systemKeys(debug: boolean): readonly KeyRow[] {
+  return debug ? [...DEBUG_KEYS, ...SCREEN_KEYS] : SCREEN_KEYS;
+}
 
 export function keyList(rows: readonly KeyRow[]): HTMLElement {
   const list = element('div', 'key-list');
