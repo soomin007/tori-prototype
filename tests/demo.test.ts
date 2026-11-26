@@ -75,28 +75,28 @@ describe('체험판의 첫 방(등록장 길)', () => {
   });
 
   for (const scheme of ['A', 'B'] as const) {
-    it(`${scheme} 방식: 턱은 뛰어서 오르지 못하고, 폐품을 밀어 턱 앞에 놓고 디디면 오른다`, () => {
+    it(`${scheme} 방식: 턱은 뛰어서 오르지 못하고, 폐품을 디디고 뛰면 오른다`, () => {
       // 폐품이 없는 방에서는 턱 앞에서 아무리 뛰어도 오르지 못한다
       const bare: RoomData = { ...GI, boxes: [], spawn: at(14.5) };
       const blocked = new Walker(scheme, bare);
       blocked.input.moveX = 1;
-      let highest = Infinity;
       blocked.seconds(4, (time) => {
         blocked.input.pressed.jump = time % 0.8 < FIXED_DT;
-        highest = Math.min(highest, blocked.center.y);
       });
       expect(blocked.center.x).toBeLessThan(LEDGE.left);
 
-      // 폐품 왼쪽에서 걸어가면 몸으로 밀어 턱 앞에 붙이고, 두 번 뛰어 오른다
-      const run = new Walker(scheme, { ...GI, spawn: at(11.8) });
+      // 폐품은 무거워 몸으로는 조금만 밀린다. 처음 자리에서 달려가 폐품을 디디고 0.7초마다 뛰면 턱에 오른다.
+      const run = new Walker(scheme);
       run.input.moveX = 1;
-      run.seconds(2.5);
-      expect(run.junk.x).toBeGreaterThan(LEDGE.left - 0.6);
       // 오른 뒤에도 계속 걸어 턱 반대편으로 내려가므로, 턱 위에 선 적이 있는지를 본다
       let climbed = false;
       let junkTop = run.junk.y;
-      run.seconds(3, (time) => {
-        run.input.pressed.jump = time % 1 < FIXED_DT;
+      let lastJump = -Infinity;
+      run.seconds(8, (time) => {
+        if (run.center.x > 14.5 && time - lastJump > 0.7) {
+          run.input.pressed.jump = true;
+          lastJump = time;
+        }
         climbed ||= run.center.x > LEDGE.left + 0.3 && run.center.x < LEDGE.right && run.center.y < LEDGE.top;
         junkTop = Math.min(junkTop, run.junk.y);
       });
