@@ -11,8 +11,10 @@ const STRIKE_COLOR = 0xfff2c0;
 /** 타격 자국이 남는 스텝 수 */
 const STRIKE_STEPS = 10;
 const STRIKE_RADIUS = { from: 0.12, to: 0.45 };
+const CUT_COLOR = 0xff6b6b;
+const CUT_RADIUS = 0.16;
 
-/** 꼬리 조작을 돕는 표시: 잡을 수 있는 것, 잡은 자리, 상대 커서, 타격 자국 */
+/** 꼬리 조작을 돕는 표시: 잡을 수 있는 것, 잡은 자리, 상대 커서, 타격 자국, Q를 누르는 동안 자를 자리 */
 export class TailOverlay {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly sim: Simulation;
@@ -41,6 +43,20 @@ export class TailOverlay {
       const t = (stepCount - step) / STRIKE_STEPS;
       if (t < 1) this.ring({ x, y }, STRIKE_RADIUS.from + (STRIKE_RADIUS.to - STRIKE_RADIUS.from) * t, STRIKE_COLOR, 1 - t);
     }
+    this.drawCutHold();
+  }
+
+  /** 디버그 키 Q를 누르는 동안, 끝 구간이 붙은 관절에 고리가 차오른다. 다 차면 그 자리가 끊긴다. */
+  private drawCutHold(): void {
+    const progress = this.sim.cutHoldProgress;
+    const point = this.sim.tori.tail.cutPoint;
+    if (progress <= 0 || !point) return;
+    const [x, y, radius] = [toPx(point.x), toPx(point.y), toPx(CUT_RADIUS)];
+    this.graphics.lineStyle(3, CUT_COLOR, 0.3).strokeCircle(x, y, radius);
+    this.graphics.lineStyle(3, CUT_COLOR, 1);
+    this.graphics.beginPath();
+    this.graphics.arc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+    this.graphics.strokePath();
   }
 
   destroy(): void {

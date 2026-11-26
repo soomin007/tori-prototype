@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import { toPx } from '../physics/world';
-import type { RoomData, Surface } from '../rooms/rooms';
+import type { DoorData, RecorderData, RoomData, Surface } from '../rooms/rooms';
 import type { Simulation } from '../sim/simulation';
 
 /** 도형 색(자리값) */
@@ -9,28 +9,46 @@ const BOX_COLORS = [0xb98a5a, 0xa87c50, 0xc79a6b];
 /** 꼬리로 들 수 있는 물건 */
 const GRABBABLE_COLOR = 0xf2c14e;
 const BRANCH_COLOR = 0x9a6b42;
+const RECORDER_COLORS = { body: 0x8f86c9, head: 0xa9a1dc, eye: 0x20262d };
+const DOOR_COLORS = { panel: 0x6b5240, frame: 0x45352a };
+const BUBBLE_COLOR = 0xe8ecf0;
+
+/** 기록관 자리표시 그림의 치수(m, 자리값) */
+const RECORDER_SIZE = { width: 0.5, height: 1.1, head: 0.2 };
+/** 말풍선이 기록관 머리 위로 떠 있는 높이(m) */
+const BUBBLE_GAP = 0.25;
 
 /** 움직임을 가늠하게 하는 배경 눈금. 1m마다 가는 선, 5m마다 진한 선이다. */
 const GRID_COLOR = 0x8b97a5;
 const GRID_ALPHA = { minor: 0.08, major: 0.2 };
 const GRID_MAJOR_EVERY = 5;
 
-const DEPTH = { grid: -20, terrain: -10, branch: -5, box: 5 };
+const DEPTH = { grid: -20, terrain: -10, recorder: -8, door: -6, branch: -5, box: 5, bubble: 45 };
 
-/** 지형과 물건을 그린다. 방을 다시 만들면 새로 만든다. */
+/** 지형, 물건, 기록관과 문을 그린다. 방을 다시 만들면 새로 만든다. */
 export class RoomView {
   private readonly sim: Simulation;
   private readonly still: Phaser.GameObjects.Graphics[];
   private readonly boxes: Phaser.GameObjects.Rectangle[];
+  /** 기록관마다의 문. 문이 없는 기록관은 null이다. */
+  private readonly doors: (Phaser.GameObjects.Graphics | null)[];
+  private readonly bubble: Phaser.GameObjects.Graphics;
 
   constructor(scene: Phaser.Scene, sim: Simulation) {
     this.sim = sim;
     const { roomData } = sim;
-    this.still = [drawGrid(scene, roomData), drawTerrain(scene, roomData), drawBranches(scene, roomData)];
-    this.boxes = sim.objects.map(({ width, height }, i) => {
-      const color = roomData.boxes[i].grabbable ? GRABBABLE_COLOR : BOX_COLORS[i % BOX_COLORS.length];
+    this.still = [
+      drawGrid(scene, roomData),
+      drawTerrain(scene, roomData),
+      drawBranches(scene, roomData),
+      drawRecorders(scene, sim.recorders.map(({ data }) => data)),
+    ];
+    this.boxes = sim.objects.map(({ width, height, data }, i) => {
+      const color = data.grabbable ? GRABBABLE_COLOR : BOX_COLORS[i % BOX_COLORS.length];
       return scene.add.rectangle(0, 0, toPx(width), toPx(height), color).setDepth(DEPTH.box);
     });
+    this.doors = sim.recorders.map(({ data }) => (data.door ? drawDoor(scene, data.door) : null));
+    this.bubble = scene.add.graphics().setDepth(DEPTH.bubble);
   }
 
   update(): void {
@@ -38,10 +56,16 @@ export class RoomView {
       const { x, y, angle } = this.sim.poseOf(body);
       this.boxes[i].setPosition(toPx(x), toPx(y)).setRotation(angle);
     });
+    this.sim.recorders.forEach(({ doorClosed }, i) => this.doors[i]?.setVisible(doorClosed));
+    // 말을 걸 수 있으면 기록관 머리 위에 빈 말풍선을 띄운다. 글은 쓰지 않는다(PLAN 2.5).
+    this.bubble.clear();
+    const near = this.sim.nearRecorder;
+    if (near) drawBubble(this.bubble, near.data);
   }
 
   destroy(): void {
-    for (const object of [...this.still, ...this.boxes]) object.destroy();
+    for (const object of [...this.still, ...this.boxes, this.bubble]) object.destroy();
+    for (const door of this.doors) door?.destroy();
   }
 }
 
@@ -77,4 +101,38 @@ function drawTerrain(scene: Phaser.Scene, { terrain }: RoomData): Phaser.GameObj
     g.fillPath();
   }
   return g;
+}
+
+/** 기록관의 자리표시 그림. 몸통과 머리, 토리 쪽(왼쪽)을 보는 눈 */
+function drawRecorders(scene: Phaser.Scene, recorders: readonly RecorderData[]): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics().setDepth(DEPTH.recorder);
+  const { width, height, head } = RECORDER_SIZE;
+  for (const { x, y } of recorders) {
+    const [left, top] = [toPx(x - width / 2), toPx(y - height)];
+    g.fillStyle(RECORDER_COLORS.body).fillRoundedRect(left, top, toPx(width), toPx(height), toPx(width) / 3);
+    const headY = y - height - head * 0.8;
+    g.fillStyle(RECORDER_COLORS.head).fillCircle(toPx(x), toPx(headY), toPx(head));
+    g.fillStyle(RECORDER_COLORS.eye).fillCircle(toPx(x - head * 0.45), toPx(headY - head * 0.1), toPx(head * 0.14));
+  }
+  return g;
+}
+
+function drawDoor(scene: Phaser.Scene, { x, y, width, height }: DoorData): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics().setDepth(DEPTH.door);
+  const [left, top, w, h] = [toPx(x - width / 2), toPx(y - height), toPx(width), toPx(height)];
+  g.fillStyle(DOOR_COLORS.frame).fillRect(left - 4, top - 4, w + 8, h + 4);
+  g.fillStyle(DOOR_COLORS.panel).fillRect(left, top, w, h);
+  return g;
+}
+
+/** 꼬리가 기록관 쪽으로 붙은 둥근 말풍선과 점 세 개 */
+function drawBubble(g: Phaser.GameObjects.Graphics, { x, y }: RecorderData): void {
+  const { height, head } = RECORDER_SIZE;
+  const [width, tall] = [toPx(0.42), toPx(0.26)];
+  const bottom = toPx(y - height - head * 1.8 - BUBBLE_GAP);
+  const [cx, top] = [toPx(x), bottom - tall];
+  g.fillStyle(BUBBLE_COLOR, 0.95).fillRoundedRect(cx - width / 2, top, width, tall, tall / 2);
+  g.fillTriangle(cx - 6, bottom - 1, cx + 6, bottom - 1, cx, bottom + 8);
+  g.fillStyle(RECORDER_COLORS.eye);
+  for (const dx of [-1, 0, 1]) g.fillCircle(cx + dx * width * 0.22, top + tall / 2, 3);
 }

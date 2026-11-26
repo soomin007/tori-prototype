@@ -13,7 +13,9 @@ import { sectionThickness } from '../tori/tail';
 export type BodyPartKey = 'torso' | 'head' | 'leg-front-upper' | 'leg-front-lower' | 'leg-hind-upper' | 'leg-hind-lower';
 /** 꼬리 마디의 그림. 밑동, 자를 수 있는 구간(1이 몸에서 가장 가깝다), 맨 끝 마디 */
 export type TailPartKey = 'tail-base' | `tail-${number}` | 'tail-tip';
-export type PartKey = BodyPartKey | TailPartKey;
+/** 회귀 비늘. 꺼진 그림이 없으면 켜진 그림을 어둡게 해서 쓴다. */
+export type ScalePartKey = 'rewind-scale' | 'rewind-scale-off';
+export type PartKey = BodyPartKey | TailPartKey | ScalePartKey;
 
 export interface PartSpec {
   key: PartKey;
@@ -38,6 +40,12 @@ const LEG_COLOR = 0x7da163;
 /** 자르는 자리가 보이게 구간마다 번갈아 쓴다 */
 const TAIL_COLORS = [0x86ab6b, 0x9cc47e];
 const EYE_COLOR = 0x20262d;
+const SCALE_COLOR = 0xffd24a;
+/** 꺼진 비늘의 밝기(켜진 비늘에 대한 비율) */
+export const SCALE_OFF_SHADE = 0.35;
+
+/** 회귀 비늘 하나의 크기(m, 자리값). 꼬리 마디처럼 가로로 누운 모습이다. */
+export const SCALE_SIZE = { width: 0.09, height: 0.07 };
 
 // 빌드할 때 있는 파일만 목록에 들어온다. 없는 파일을 불러 404를 내지 않기 위해서다.
 // 작은 파일도 코드에 섞지 않고 따로 배포한다(no-inline).
@@ -103,6 +111,16 @@ export function tailPartSpec(config: GameConfig, section: number, tip: boolean):
   };
 }
 
+/** 회귀 비늘의 부위. off는 꺼진 그림이다. */
+export function scalePartSpec(off: boolean): PartSpec {
+  return { key: off ? 'rewind-scale-off' : 'rewind-scale', ...SCALE_SIZE, originX: 0.5, originY: 0.5, color: SCALE_COLOR };
+}
+
+/** 그림 파일이 들어 있는지 */
+export function hasPartImage(scene: Phaser.Scene, key: PartKey): boolean {
+  return scene.textures.exists(textureKey(key));
+}
+
 /** 화면에 올린 부위 하나 */
 export class Part {
   private readonly object: Phaser.GameObjects.Image | Phaser.GameObjects.Graphics;
@@ -130,6 +148,10 @@ export class Part {
   place({ x, y, angle }: Pose, flip = 1): void {
     this.object.setPosition(toPx(x), toPx(y)).setRotation(angle);
     this.object.scaleX = this.baseScaleX * flip;
+  }
+
+  setVisible(visible: boolean): void {
+    this.object.setVisible(visible);
   }
 
   destroy(): void {
