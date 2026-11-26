@@ -13,8 +13,11 @@ import { seededRandom } from './random';
  */
 export type FoePhase = 'idle' | 'measure' | 'windup' | 'attack' | 'recover' | 'stagger' | 'retreat' | 'defeated';
 
-/** 결투가 상대에게 시키는 일. wait는 결투 전과 시작할 때, retreat는 토리가 쓰러졌을 때다. */
-export type FoeOrder = 'wait' | 'fight' | 'retreat';
+/**
+ * 결투가 상대에게 시키는 일. wait는 결투 전과 시작할 때, retreat는 토리가 쓰러졌을 때다.
+ * hold는 싸우는 중이지만 새 공격을 시작하지 않고 그 자리에서 거리만 잰다. 대본 사건이 예고하고 떨어지는 동안이다.
+ */
+export type FoeOrder = 'wait' | 'fight' | 'hold' | 'retreat';
 
 /** 방 좌표의 사각형 */
 export interface Box {
@@ -22,6 +25,12 @@ export interface Box {
   right: number;
   top: number;
   bottom: number;
+}
+
+/** 콜라이더가 방 좌표의 사각형과 겹치는지. 상대의 공격과 대본 사건의 구조물이 토리에 닿는지 볼 때 쓴다. */
+export function boxOverlaps(collider: RAPIER.Collider, { left, right, top, bottom }: Box): boolean {
+  const shape = new RAPIER.Cuboid((right - left) / 2, (bottom - top) / 2);
+  return collider.intersectsShape(shape, { x: (left + right) / 2, y: (top + bottom) / 2 }, 0);
 }
 
 /** 돌진하다 이보다 느려지면 벽이나 토리에 막힌 것으로 본다(공격 속도에 대한 비율) */
@@ -59,6 +68,8 @@ export class Opponent {
   attack: Attack | null = null;
   /** 이번 공격으로 토리를 맞혔는지 */
   landed = false;
+  /** 체력이 이 밑으로 내려가지 않는다. 처음 한 번의 대본 사건이 일어나기 전에 1이 된다(PLAN 7.8). */
+  minHealth = 0;
 
   private readonly config: GameConfig;
   private readonly random: () => number;
@@ -140,7 +151,8 @@ export class Opponent {
 
     if (this.phase === 'defeated') return;
     if (order === 'retreat' && this.phase !== 'stagger' && this.phase !== 'retreat') this.enter('retreat');
-    if (order === 'fight' && (this.phase === 'idle' || this.phase === 'retreat')) this.enterMeasure();
+    const fighting = order === 'fight' || order === 'hold';
+    if (fighting && (this.phase === 'idle' || this.phase === 'retreat')) this.enterMeasure();
 
     switch (this.phase) {
       case 'idle':
@@ -150,9 +162,10 @@ export class Opponent {
       case 'measure': {
         this.face(toward);
         const choices = attacks.filter(({ minRange, maxRange }) => gap >= minRange && gap <= maxRange);
-        // 어느 공격의 거리도 아니면 다가간다
-        this.drive(choices.length === 0 ? toward * body.walkSpeed : 0, body.accel);
-        if (choices.length > 0 && this.elapsed >= this.measureFor) {
+        // 어느 공격의 거리도 아니면 다가간다. hold면 그 자리에 선다.
+        const approach = choices.length === 0 && order !== 'hold';
+        this.drive(approach ? toward * body.walkSpeed : 0, body.accel);
+        if (choices.length > 0 && this.elapsed >= this.measureFor && order === 'fight') {
           this.attack = choices[Math.floor(this.random() * choices.length)];
           this.enter('windup');
         }
@@ -191,7 +204,7 @@ export class Opponent {
   hurt(damage: number, push: number, fromX: number): number {
     if (this.phase === 'defeated') return 0;
     const { body } = this.data;
-    const dealt = Math.min(this.health, damage * (this.opening ? 1 : body.guardDamage));
+    const dealt = Math.max(0, Math.min(this.health - this.minHealth, damage * (this.opening ? 1 : body.guardDamage)));
     this.health -= dealt;
     const away = Math.sign(this.x - fromX) || -this.facing;
     const speed = push * body.knockbackTaken;

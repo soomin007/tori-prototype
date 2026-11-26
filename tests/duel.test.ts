@@ -1,118 +1,20 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { cloneConfig, DEFAULTS, DEG, FIXED_DT, setParam } from '../src/config/defaults';
-import type { ParamValue } from '../src/config/defaults';
+import { cloneConfig, DEFAULTS, DEG, FIXED_DT } from '../src/config/defaults';
 import { readOpponent } from '../src/config/opponents';
 import type { Scheme } from '../src/config/presets';
 import { initPhysics } from '../src/physics/world';
-import type { DuelData, Point, RecorderData, RoomData } from '../src/rooms/rooms';
-import { createInputState } from '../src/sim/inputState';
-import type { InputState } from '../src/sim/inputState';
 import type { FoePhase } from '../src/sim/opponent';
 import { Simulation } from '../src/sim/simulation';
-import type { SimEvent } from '../src/sim/simulation';
 import type { GameState } from '../src/state/gameState';
+import { alternateKeys, Duelist, duelRoom, faceToFace, PASSIVE, RECORDER } from './duelist';
 import { ground, room } from './testRooms';
 
 beforeAll(() => initPhysics());
 
 const { baseLinks } = DEFAULTS.tail;
 const TORSO_HALF = DEFAULTS.torso.length / 2;
-const FOE_HALF = DEFAULTS.foe1.width / 2;
 /** 쓰러진 뒤 탈락할 때까지 */
 const COUNT_SECONDS = DEFAULTS.duel.countTo * DEFAULTS.duel.countSeconds;
-
-/** 결투 시험 방의 기록관. 말을 걸면 회귀 지점이 된다. */
-const RECORDER: RecorderData = {
-  id: 'test-recorder',
-  x: 3,
-  y: 0,
-  stand: { x: 1.9, y: -0.5 },
-  line: '기록관 대사 1',
-  number: '번호 1',
-  time: '시각 1',
-  door: null,
-};
-
-interface DuelRoomOptions {
-  opponentX?: number;
-  startX?: number;
-  spawnX?: number;
-}
-
-/** 결투 시험 방. 바닥 윗면이 y = 0이다. 기록관(x 3) 오른쪽의 결투장(x 8~30)에 들어서면(x 11) 결투가 시작된다. */
-function duelRoom({ opponentX = 14, startX = 11, spawnX = RECORDER.stand.x }: DuelRoomOptions = {}): RoomData {
-  const duel: DuelData = {
-    id: 'duel-test',
-    left: 8,
-    right: 30,
-    floorY: 0,
-    startX,
-    opponent: 'opponent-1',
-    opponentX,
-    numbers: ['번호 1', '번호 2'],
-  };
-  return { ...room([ground(0, 40)], [], [], [RECORDER], [duel]), spawn: { x: spawnX, y: -0.5 } };
-}
-
-/** 토리가 결투장 안(x 12)에서 시작하고 상대가 몸 앞 face(m)에 서 있는 방. 결투는 첫 스텝에 시작된다. */
-function faceToFace(face: number): RoomData {
-  return duelRoom({ spawnX: 12, opponentX: 12 + face + FOE_HALF });
-}
-
-/** 상대가 거리를 재기만 하고 공격하지 않게 하는 설정. 튜닝 패널의 범위(3초)를 넘지만 테스트에서는 그대로 쓴다. */
-const PASSIVE = { 'foe1.measureMinSeconds': 20, 'foe1.measureMaxSeconds': 20 };
-
-class Duelist {
-  readonly sim: Simulation;
-  readonly input: InputState = createInputState();
-  readonly events: SimEvent[] = [];
-
-  constructor(scheme: Scheme, roomData: RoomData, config: Record<string, ParamValue> = {}, initial: Partial<GameState> = {}) {
-    const values = cloneConfig(DEFAULTS);
-    for (const [path, value] of Object.entries(config)) setParam(values, path, value);
-    this.sim = new Simulation(values, roomData, scheme, initial);
-  }
-
-  seconds(seconds: number, each?: (time: number) => void): this {
-    for (let i = 0; i < Math.round(seconds / FIXED_DT); i += 1) {
-      each?.(i * FIXED_DT);
-      this.sim.step(this.input);
-      this.events.push(...this.sim.drainEvents());
-    }
-    return this;
-  }
-
-  /** 조건이 참이 될 때까지(최대 seconds) 돌린다 */
-  until(done: () => boolean, seconds: number): this {
-    for (let i = 0; i < Math.round(seconds / FIXED_DT) && !done(); i += 1) this.seconds(FIXED_DT);
-    return this;
-  }
-
-  pressE(): this {
-    this.input.pressed.interact = true;
-    return this.seconds(FIXED_DT);
-  }
-
-  /** 몸통 중심에서 본 자리에 커서를 둔다 */
-  point(dx: number, dy: number): this {
-    const { x, y } = this.center;
-    this.input.pointerActive = true;
-    this.input.pointer = { x: x + dx, y: y + dy };
-    return this;
-  }
-
-  get duel() {
-    return this.sim.duels[0];
-  }
-
-  get foe() {
-    return this.duel.opponent;
-  }
-
-  get center(): Point {
-    return this.sim.tori.torso.translation();
-  }
-}
 
 describe('꼬리 타격 피해', () => {
   it('B 방식: 기준 속도를 넘은 꼬리 마디가 상대에 닿으면 상대의 체력이 준다', () => {
@@ -177,11 +79,6 @@ describe('쓰러짐, 심판 카운트, 버둥거림', () => {
     expect(run.sim.tori.downed).toBe(true);
     return run;
   }
-
-  /** 좌우 이동 키를 0.1초마다 번갈아 누른다 */
-  const alternateKeys = (run: Duelist) => (time: number) => {
-    run.input.moveX = Math.floor(time / 0.1) % 2 === 0 ? 1 : -1;
-  };
 
   for (const scheme of ['A', 'B'] as const) {
     it(`${scheme} 방식: 버둥거림 게이지가 차면 꼬리가 끊기고 마지막 기록관 앞으로 회귀한다`, () => {

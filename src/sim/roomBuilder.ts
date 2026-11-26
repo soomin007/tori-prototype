@@ -10,6 +10,7 @@ import type { GameState } from '../state/gameState';
 import { Duel } from './duel';
 import type { DuelEvent } from './duel';
 import { Recorder } from './recorder';
+import type { ScriptedEvent } from './scripted';
 
 /** 움직이는 물건. 크기는 미터다. */
 export interface SimObject {
@@ -31,11 +32,13 @@ export class Room {
   readonly recorders: readonly Recorder[];
   /** 결투장. 이긴 결투는 만들지 않는다. */
   readonly duels: readonly Duel[];
+  /** 대본 사건. 저마다 딸린 결투가 진행한다. 이긴 결투의 사건은 만들지 않는다. */
+  readonly events: readonly ScriptedEvent[];
   private readonly terrain: readonly RAPIER.Collider[];
   private readonly surfaces = new Map<number, Surface>();
 
   /**
-   * state의 회귀 횟수로 놓을 것을 거르고, 말을 건 기록관의 문은 열어 둔다. 이긴 결투(state.duelsWon)는 만들지 않는다.
+   * state의 회귀 횟수로 놓을 것을 거르고, 말을 건 기록관의 문은 열어 둔다. 이긴 결투(state.duelsWon)와 그 사건은 만들지 않는다.
    * abilities는 남은 구간의 능력표 줄이고 결투가 토리의 체력 상한과 넉백에 쓴다. emit은 결투가 알리는 일을 받는다.
    */
   constructor(
@@ -59,7 +62,14 @@ export class Room {
       .map((recorder) => new Recorder(physics, recorder, state.talkedTo.includes(recorder.id)));
     this.duels = data.duels
       .filter((duel) => appears(duel, state.rewinds) && !state.duelsWon.includes(duel.id))
-      .map((duel) => new Duel(physics, duel, config, abilities, emit));
+      .map((duel) => new Duel(physics, duel, config, abilities, emit, state.rewinds));
+    this.events = data.events
+      .filter((event) => appears(event, state.rewinds))
+      .flatMap((event) => {
+        if (!data.duels.some(({ id }) => id === event.duel)) throw new Error(`대본 사건 ${event.id}의 결투 ${event.duel}가 방에 없다`);
+        const duel = this.duels.find(({ data: { id } }) => id === event.duel);
+        return duel ? [duel.addEvent(event)] : [];
+      });
     this.applyMaterials(config);
   }
 

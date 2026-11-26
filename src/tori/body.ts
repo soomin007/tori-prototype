@@ -60,6 +60,8 @@ export class Tori {
   probeLines: ProbeLine[] = [];
   /** 결투에서 쓰러져 있는지. 직립 유지와 이동을 끄고 꼬리는 늘어뜨린다(PLAN 7.6). 방을 다시 만들면 풀린다. */
   downed = false;
+  /** 대본 사건의 구조물에 깔려 있는지(PLAN 7.8). downed와 함께 켜지고, 배를 아래로 한 채 구조물 밑에 붙잡힌다. */
+  pinned = false;
 
   private readonly config: GameConfig;
   private readonly world: RAPIER.World;
@@ -77,6 +79,8 @@ export class Tori {
   /** 버둥거릴 때 꼬리를 흔드는 남은 시간과 방향 */
   private flail = 0;
   private flailSide = 1;
+  /** 깔린 몸통을 붙잡아 두는 x */
+  private pinX = 0;
 
   /** sections는 꼬리에 붙일 구간 수(남은 구간)다 */
   constructor(
@@ -183,6 +187,17 @@ export class Tori {
     this.torso.setAngvel(this.torso.angvel() + direction * this.config.duel.downSpin, true);
   }
 
+  /**
+   * 대본 사건의 구조물에 깔린다(PLAN 7.8). 쓰러졌을 때처럼 직립 유지, 이동, 점프를 끄지만, 뒤집히지 않고 배를 아래로 한 채
+   * x 자리에 붙잡힌다. 잡고 있던 것은 놓는다.
+   */
+  pinDown(x: number): void {
+    this.downed = true;
+    this.pinned = true;
+    this.pinX = x;
+    this.grab.update(false, this.tail, this.colliders);
+  }
+
   /** 쓰러져 버둥거린다. 몸을 side 쪽으로 조금 돌리고 꼬리를 흔든다. 입력마다 눈에 보이게 반응한다(PLAN 7.6). */
   struggle(side: number, twitch: number): void {
     this.torso.applyTorqueImpulse(side * twitch, true);
@@ -237,14 +252,16 @@ export class Tori {
   /**
    * 쓰러져 있을 때. 띄우는 힘, 직립 유지, 이동, 점프를 모두 끄고, 직립 유지 대신 배를 위로 한 자세를 쫓는 약한 토크를 준다.
    * 쓰러질 때 밀려난 쪽으로 돌던 방향 그대로 뒤집힌다. 꼬리는 무게를 버티지 않고 늘어지고, 버둥거리면 잠깐 흔든다.
+   * 구조물에 깔렸을 때는 뒤집히지 않고 배를 아래로 한 채 엎드리고, 몸통을 깔린 자리에 붙잡는다.
    */
   private lie(command: TailCommand): void {
     this.updateGround(this.probeGround());
     this.flail = Math.max(0, this.flail - FIXED_DT);
     const { duel, upright } = this.config;
     const maxDamping = (this.torso.principalInertia() * MAX_DAMPING_PER_STEP) / FIXED_DT;
-    const flip = angleDiff(this.torso.rotation(), Math.PI);
+    const flip = angleDiff(this.torso.rotation(), this.pinned ? 0 : Math.PI);
     this.torso.addTorque(-duel.downTorque * flip - Math.min(upright.damping, maxDamping) * this.torso.angvel(), true);
+    if (this.pinned) this.holdPinned();
     const span = Math.max(duel.struggleWiggleSeconds, FIXED_DT);
     const wave = this.flail > 0 ? Math.sin((Math.PI * this.flail) / span) : 0;
     const bend = this.flailSide * duel.struggleWiggleDeg * DEG * wave;
@@ -254,6 +271,14 @@ export class Tori {
     command.grab = false;
     command.limp = true;
     this.tail.drive(command, this.turn, false);
+  }
+
+  /** 깔린 몸통을 구조물 밑(pinX)에 붙잡는다. 가로로만 당기는 스프링이고, 감쇠는 출렁이지 않는 값이다. */
+  private holdPinned(): void {
+    const stiffness = this.config.scripted.pinHold;
+    const offset = this.torso.translation().x - this.pinX;
+    const damping = 2 * Math.sqrt(stiffness * this.bodyMass);
+    this.torso.addForce({ x: -stiffness * offset - damping * this.torso.linvel().x, y: 0 }, true);
   }
 
   /**

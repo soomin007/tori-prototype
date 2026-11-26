@@ -100,6 +100,41 @@ export interface DuelData extends Appearance {
   opponentX: number;
   /** 전광판에 나오는 번호. 자리표시다. 앞이 토리, 뒤가 상대다. */
   numbers: readonly [string, string];
+  /** 이기면 "체험판 끝" 화면을 띄우는 결투(PLAN 7.9). 12월 2일 체험판의 결투 1이다. */
+  endsDemo?: boolean;
+}
+
+/**
+ * 대본 사건의 계기(PLAN 7.8). 적은 것 가운데 하나라도 맞으면 온다.
+ * 시간과 체력 비율은 사건이 딸린 결투가 싸움 중일 때만 본다.
+ */
+export interface EventTrigger {
+  /** 싸움이 시작된 뒤 지난 시간(초) */
+  fightSeconds?: number;
+  /** 상대의 체력이 이 비율보다 낮아지면 */
+  foeHealthBelow?: number;
+  /** 토리의 체력이 이 비율보다 낮아지면. 쓰러지기 전에 사건이 먼저 오게 하는 자리다(PLAN 7.8). */
+  toriHealthBelow?: number;
+  /** 토리의 몸통 중심이 이 x를 넘으면 */
+  toriPastX?: number;
+}
+
+/**
+ * 대본 사건(PLAN 7.8). 계기가 오면 위쪽 인물이 예고 동작을 하고, 예고가 끝나면 매달린 구조물을 떨어뜨린다.
+ * 구조물에 깔린 토리는 결투에서 쓰러졌을 때와 같은 버둥거림으로 꼬리를 자른다(PLAN 7.6).
+ * 회귀하면 방을 다시 만들면서 사건도 처음으로 돌아가므로, 같은 계기에 같은 일이 다시 일어난다.
+ * 예고 시간, 떨어지는 빠르기, 처음 한 번의 규칙은 config의 scripted에 있다. 배치와 치수는 자리값이다.
+ */
+export interface ScriptedEventData extends Appearance {
+  /** 방이 달라도 겹치면 안 된다 */
+  id: string;
+  /** 이 사건이 일어나는 결투(DuelData.id). 사건은 그 결투가 시작된 뒤에만 일어난다. */
+  duel: string;
+  trigger: EventTrigger;
+  /** 매달린 구조물. 처음에는 가운데가 x에 있고, 아랫면이 y에 있다. */
+  drop: { x: number; y: number; width: number; height: number };
+  /** 떨어뜨리는 인물이 서 있는 높은 발판(그림만 있고 부딪히지 않는다). y는 윗면이다. */
+  ledge: { left: number; right: number; y: number };
 }
 
 export interface RoomData {
@@ -114,6 +149,7 @@ export interface RoomData {
   branches: readonly BranchData[];
   recorders: readonly RecorderData[];
   duels: readonly DuelData[];
+  events: readonly ScriptedEventData[];
 }
 
 /** 바닥 윗면의 y. 아래 도우미는 이 높이에서 위로 잰 값(h)을 받는다. */
@@ -179,6 +215,7 @@ const MOVE_ROOM: RoomData = {
   branches: [],
   recorders: [],
   duels: [],
+  events: [],
 };
 
 /** 바닥이나 다른 상자 위에 놓인 상자. h는 아랫면의 높이다. */
@@ -230,6 +267,7 @@ const TAIL_ROOM: RoomData = {
   branches: [branch(15.4, 2.7), branch(18.2, 2.8), branch(21.2, 2.9)],
   recorders: [],
   duels: [],
+  events: [],
 };
 
 /**
@@ -277,6 +315,7 @@ const DUEL_ROOM: RoomData = {
   recorders: [recorder('duel-1', 5.5, 6.7)],
   // 결투 1(x 19~32). 상대와 토리는 번호로만 부른다
   duels: [arena('duel-1', 19, 32, ['번호 1', '번호 2'])],
+  events: [],
 };
 
 /** 방 번호 - 1이 자리다. 방 4는 아직 없다. */

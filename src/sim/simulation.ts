@@ -10,7 +10,7 @@ import { FixedStepper, PhysicsWorld } from '../physics/world';
 import type { Pose } from '../physics/world';
 import { roomByNumber } from '../rooms/rooms';
 import type { Point, RoomData } from '../rooms/rooms';
-import { takeCheckpoint } from '../state/checkpoints';
+import { restoreCheckpoint, takeCheckpoint } from '../state/checkpoints';
 import type { Checkpoint } from '../state/checkpoints';
 import { createGameState } from '../state/gameState';
 import type { GameState } from '../state/gameState';
@@ -26,6 +26,7 @@ import type { InputState } from './inputState';
 import type { Dialogue, Recorder } from './recorder';
 import { Room } from './roomBuilder';
 import type { SimObject } from './roomBuilder';
+import type { ScriptedEvent } from './scripted';
 import { Strikes } from './strike';
 
 /** 그리기 쪽이 연출을 붙일 일. 체크포인트가 생긴 것은 화면에 알리지 않으므로 없다(PLAN 7.8). */
@@ -99,6 +100,11 @@ export class Simulation {
 
   get duels(): readonly Duel[] {
     return this.room.duels;
+  }
+
+  /** 대본 사건(PLAN 7.8). 저마다 딸린 결투가 진행한다. */
+  get scripted(): readonly ScriptedEvent[] {
+    return this.room.events;
   }
 
   /** 지금 화면에 보여 줄 결투. 결투 밖이거나 이긴 뒤면 없다. */
@@ -223,6 +229,7 @@ export class Simulation {
     for (const duel of this.room.duels) duel.afterStep(tori, this.state);
     // 방을 다시 만들면 지금 월드를 지우므로 스텝의 맨 끝에서 한다
     if (this.sequence.advance(FIXED_DT, config.cut.rewindSeconds)) this.finishRewind();
+    else if (this.room.duels.some((duel) => duel.retryDue)) this.retry();
     // 한 프레임에 여러 스텝이 돌아도 누른 순간은 한 번만 쓴다. 스텝이 돌지 않은 프레임의 입력은 다음까지 남는다.
     clearMomentary(input);
   }
@@ -310,6 +317,20 @@ export class Simulation {
   private finishRewind(): void {
     this.sequence.stop();
     rewindState(this.state, this.checkpoint);
+    this.backToRecorder();
+  }
+
+  /**
+   * 회귀한 뒤 또 깔렸는데 자르지 않기로 했을 때(scripted.repinCuts). 꼬리를 자르지 않고 기록관 앞으로 돌아가 다시 한다.
+   * timeline만 체크포인트로 되돌리고 meta(남은 구간, 회귀 횟수)는 그대로 둔다.
+   */
+  private retry(): void {
+    restoreCheckpoint(this.state, this.checkpoint);
+    this.backToRecorder();
+  }
+
+  /** 마지막으로 말을 건 기록관의 방을 다시 만들어 그 앞에 서고, 같은 대사를 띄운다 */
+  private backToRecorder(): void {
     const roomData = this.knownRooms.get(this.state.room) ?? roomByNumber(this.state.room);
     this.roomData = roomData;
     this.state.room = roomData.number;

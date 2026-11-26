@@ -202,6 +202,18 @@ export interface GameConfig extends OpponentGroups {
     downTorque: number;
     downTailStrength: number;
   };
+  scripted: {
+    warnSeconds: number;
+    aimSpeed: number;
+    fallAccel: number;
+    forceFirst: boolean;
+    holdFoe: boolean;
+    pinCount: boolean;
+    repinCuts: boolean;
+    retrySeconds: number;
+    pinHold: number;
+    lingerSeconds: number;
+  };
   ground: {
     friction: number;
     slipperyAccel: number;
@@ -413,6 +425,19 @@ export const DEFAULTS: GameConfig = {
   },
   // 튜닝 패널에서 결투 묶음 바로 뒤에 나오도록 여기에 둔다
   ...OPPONENT_DEFAULTS,
+  // 대본 사건(PLAN 7.8). 사건마다의 계기와 배치는 방 데이터(rooms.ts의 events)에 있다
+  scripted: {
+    warnSeconds: 1.2, // 계기가 온 뒤 구조물이 떨어질 때까지 위쪽 인물이 예고하는 시간. 0이면 오류다(예고 없이 동작하지 못한다)
+    aimSpeed: 2.5, // m/s. 결투가 시작된 뒤 구조물이 토리 위로 따라오는 빠르기. 토리의 최고 속도(4)보다 느려서 예고를 보고 달리면 벗어난다
+    fallAccel: 30, // m/s². 3.7m 위에서 0.5초 만에 떨어진다
+    forceFirst: true, // 회귀 0번에는 반드시 깔린다. 예고와 낙하 동안 토리보다 두 배 빠르게 따라가고, 사건 전에는 두 참가자의 체력이 1 밑으로 내려가지 않는다(PLAN 7.8)
+    holdFoe: true, // 예고하고 떨어지는 동안 상대가 새 공격을 시작하지 않는다. 예고를 보고 피할 틈을 준다
+    pinCount: true, // 깔려 있는 동안 심판이 센다. 끄면 자를 구간이 있는 한 세지 않는다
+    repinCuts: true, // 회귀한 뒤 또 깔리면 처음처럼 버둥거려 자른다. 끄면 자르지 않고 기록관 앞으로 돌아가 다시 한다(11.1의 4번)
+    retrySeconds: 1.5, // repinCuts를 끈 때, 다시 깔린 뒤 기록관 앞으로 돌아갈 때까지
+    pinHold: 400, // N/m. 깔린 몸통을 구조물 밑에 붙잡아 두는 세기
+    lingerSeconds: 1, // 빗나간 구조물이 바닥에 남아 있다가 사라질 때까지
+  },
   ground: {
     friction: 0.8, // 물건과 꼬리가 바닥에 닿을 때의 마찰. 토리의 이동에는 쓰지 않는다
     slipperyAccel: 0.2, // PLAN 7.2. 미끄러운 바닥에서 가속에 곱한다
@@ -603,6 +628,16 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'duel.downTorque': { label: '쓰러지면 뒤집기 (N·m/rad)', min: 0, max: 150, step: 1 },
   'duel.downTailStrength': { label: '쓰러진 꼬리 모터 배율', min: 0, max: 1, step: 0.01 },
   ...OPPONENT_META,
+  'scripted.warnSeconds': { label: '예고 시간 (초)', min: 0.2, max: 5, step: 0.1 },
+  'scripted.aimSpeed': { label: '예고 중 따라오기 (m/s)', min: 0, max: 10, step: 0.1 },
+  'scripted.fallAccel': { label: '떨어지는 가속 (m/s²)', min: 2, max: 80, step: 1 },
+  'scripted.forceFirst': { label: '처음에는 반드시 깔림' },
+  'scripted.holdFoe': { label: '예고 중 상대 공격 멈춤' },
+  'scripted.pinCount': { label: '깔리면 심판 카운트' },
+  'scripted.repinCuts': { label: '다시 깔리면 자르기' },
+  'scripted.retrySeconds': { label: '다시 하기까지 (초)', min: 0.2, max: 5, step: 0.1 },
+  'scripted.pinHold': { label: '깔린 몸 붙잡기 (N/m)', min: 0, max: 2000, step: 10 },
+  'scripted.lingerSeconds': { label: '빗나간 구조물 남기 (초)', min: 0, max: 5, step: 0.1 },
   'ground.friction': { label: '바닥 마찰 (물건, 꼬리)', min: 0, max: 2, step: 0.01 },
   'ground.slipperyAccel': { label: '미끄러운 바닥 가속 배율', min: 0.02, max: 1, step: 0.02 },
   'ground.slipperyDecel': { label: '미끄러운 바닥 감속 배율', min: 0.02, max: 1, step: 0.02 },
@@ -638,6 +673,7 @@ export const GROUP_LABELS: Record<keyof GameConfig, string> = {
   recorder: '기록관',
   duel: '결투',
   ...OPPONENT_LABELS,
+  scripted: '대본 사건',
   ground: '바닥',
   props: '물건',
   camera: '카메라',
