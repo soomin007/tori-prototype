@@ -30,14 +30,18 @@ export const SCHEME_GUIDES: Record<Scheme, SchemeGuide> = {
   },
 };
 
-export const MOVE_KEYS: readonly KeyRow[] = [
+/** 두 방식에 같은 키. 첫 화면에도 나온다. */
+export const COMMON_KEYS: readonly KeyRow[] = [
   ['A / D 또는 ← / →', '이동'],
   ['Space', '점프'],
+  ['E', '말 걸기, 대사 넘기기'],
 ];
 
+/** 개발과 확인용 키. 도움말에만 나온다. */
 export const SYSTEM_KEYS: readonly KeyRow[] = [
-  ['1 ~ 4', '방 이동'],
-  ['R', '방 처음부터'],
+  ['Q 1초 누르기', '꼬리 자르기'],
+  ['1 ~ 3', '방 이동'],
+  ['R', '처음부터'],
   ['Esc', '일시정지'],
   ['F1', '물리 디버그'],
   ['F2', '튜닝 패널'],

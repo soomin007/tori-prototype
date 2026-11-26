@@ -237,6 +237,54 @@ kbd {
   transform: translateX(-50%);
 }
 
+/* 기록관의 대사. 화면 아래 가운데에 띄우고, 빌드 버전 줄과 알림보다 위에 둔다. */
+.dialogue {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  box-sizing: border-box;
+  width: min(640px, calc(100vw - 40px));
+  padding: 12px 20px 14px;
+  border: 1px solid #8b97a5;
+  border-radius: 6px;
+  background: rgb(20 24 29 / 92%);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.dialogue[hidden] {
+  display: none;
+}
+
+.dialogue-speaker {
+  margin: 0 0 6px;
+  color: #c9c2f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.dialogue-line {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.dialogue-next {
+  position: absolute;
+  right: 14px;
+  bottom: 8px;
+  font-size: 11px;
+  opacity: 0.7;
+  animation: dialogue-next 1s ease-in-out infinite alternate;
+}
+
+@keyframes dialogue-next {
+  to {
+    opacity: 0.2;
+  }
+}
+
 .hud-copy {
   position: fixed;
   top: 50%;

@@ -45,7 +45,7 @@ export class TuningPanel {
         return copy(JSON.stringify({ scheme, room, config }, null, 2), '설정 JSON을 복사했습니다.', hooks);
       },
     };
-    this.gui.add(actions, 'restart').name('방 처음부터 (R)');
+    this.gui.add(actions, 'restart').name('처음부터 (R)');
     this.gui.add(actions, 'copyLink').name('지금 설정으로 링크 복사');
     this.gui.add(actions, 'copyJson').name('설정 JSON 복사');
 

@@ -1,6 +1,6 @@
 import { SCHEMES } from '../config/presets';
 import type { Scheme } from '../config/presets';
-import { keyList, MOVE_KEYS, SCHEME_GUIDES } from './controlsGuide';
+import { COMMON_KEYS, keyList, SCHEME_GUIDES } from './controlsGuide';
 import { button, element } from './dom';
 
 /** 첫 화면. 꼬리 조작 방식을 고르고 키 안내를 본다. */
@@ -32,7 +32,7 @@ export class StartScreen {
     }
 
     const common = element('section', 'start-common');
-    common.append(keyList(MOVE_KEYS));
+    common.append(keyList(COMMON_KEYS));
     panel.append(
       cards,
       common,

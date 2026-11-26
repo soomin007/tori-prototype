@@ -1,6 +1,7 @@
 import type { Scheme } from '../config/presets';
+import type { Dialogue } from '../sim/recorder';
 import type { SystemCommands } from '../view/inputReader';
-import { keyList, MOVE_KEYS, SCHEME_GUIDES, SYSTEM_KEYS } from './controlsGuide';
+import { COMMON_KEYS, keyList, SCHEME_GUIDES, SYSTEM_KEYS } from './controlsGuide';
 import { button as makeButton, element } from './dom';
 
 const TOAST_MS = 2500;
@@ -13,7 +14,7 @@ const BUTTONS: { name: ToggleName; command: 'toggleDebug' | 'togglePanel' | 'tog
   { name: 'help', command: 'toggleHelp', label: '도움말', key: 'F3', tooltip: '조작 도움말 열고 닫기' },
 ];
 
-/** 화면 구석의 단추, 빌드 버전, 도움말, 일시정지 창, 짧은 알림. 게임 화면 위에 DOM으로 올린다. */
+/** 화면 구석의 단추, 빌드 버전, 도움말, 일시정지 창, 짧은 알림, 대화 상자. 게임 화면 위에 DOM으로 올린다. */
 export class Hud {
   private readonly root: HTMLElement;
   private readonly pausePanel = element('div', 'hud-pause');
@@ -23,6 +24,10 @@ export class Hud {
   private readonly toast = element('div', 'hud-toast');
   private readonly copyBox = element('div', 'hud-copy');
   private readonly copyText = element('textarea', '');
+  private readonly dialogue = element('div', 'dialogue');
+  private readonly speaker = element('p', 'dialogue-speaker');
+  private readonly line = element('p', 'dialogue-line');
+  private shownDialogue: Dialogue | null = null;
   private toastTimer = 0;
 
   constructor(root: HTMLElement, commands: SystemCommands) {
@@ -42,7 +47,7 @@ export class Hud {
     this.pausePanel.append(
       element('h2', '', '일시정지'),
       makeButton('계속하기', 'hud-button', () => commands.togglePause()),
-      makeButton('방 처음부터', 'hud-button', () => commands.restartRoom()),
+      makeButton('처음부터', 'hud-button', () => commands.restartRoom()),
       makeButton('첫 화면으로', 'hud-button', () => commands.toStart()),
     );
     this.pausePanel.hidden = true;
@@ -65,7 +70,22 @@ export class Hud {
     );
     this.copyBox.hidden = true;
 
-    root.replaceChildren(bar, this.help, this.pausePanel, this.toast, this.copyBox, this.status);
+    // 대사를 넘기는 키(E)는 첫 화면과 도움말에만 적고, 상자에는 넘길 수 있다는 표시만 둔다(PLAN 2.5)
+    this.dialogue.append(this.speaker, this.line, element('span', 'dialogue-next', '▼'));
+    this.dialogue.setAttribute('aria-live', 'polite');
+    this.dialogue.hidden = true;
+
+    root.replaceChildren(bar, this.help, this.pausePanel, this.dialogue, this.toast, this.copyBox, this.status);
+  }
+
+  /** 기록관의 대사를 띄우거나 닫는다. 프레임마다 불러도 바뀔 때만 고친다. */
+  showDialogue(dialogue: Dialogue | null): void {
+    if (dialogue === this.shownDialogue) return;
+    this.shownDialogue = dialogue;
+    this.dialogue.hidden = dialogue === null;
+    if (!dialogue) return;
+    this.speaker.textContent = dialogue.speaker;
+    this.line.textContent = dialogue.text;
   }
 
   destroy(): void {
@@ -87,7 +107,7 @@ export class Hud {
     const { title, summary, keys } = SCHEME_GUIDES[scheme];
     this.help.replaceChildren(
       element('h2', '', '조작 도움말'),
-      keyList(MOVE_KEYS),
+      keyList(COMMON_KEYS),
       element('h3', '', `꼬리 ${scheme}. ${title}`),
       element('p', '', summary),
       keyList(keys),

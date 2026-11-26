@@ -14,6 +14,9 @@ import { ToriView } from '../view/toriView';
 
 /** 탭을 떠났다 돌아왔을 때 다리 그림과 카메라가 한 번에 움직일 시간의 상한(초) */
 const MAX_VIEW_SECONDS = 0.1;
+/** 회귀 연출의 자리표시(PLAN 7.4): 꼬리가 끊길 때 화면이 흔들리고, 돌아올 때 하얗게 깜빡인다(ms, 세기) */
+const CUT_SHAKE = { ms: 150, intensity: 0.004 };
+const REWIND_FLASH_MS = 600;
 
 /** 시뮬레이션을 프레임마다 진행하고 그린다. 게임 규칙은 sim/에 두고 여기에는 넣지 않는다. */
 export class RoomScene extends Phaser.Scene {
@@ -66,7 +69,8 @@ export class RoomScene extends Phaser.Scene {
     };
     this.hud = new Hud(document.getElementById('hud') as HTMLElement, commands);
     this.panel = new TuningPanel(session, {
-      onParamChange: (meta) => (meta.rebuild ? this.sim.reset() : this.sim.applyConfig()),
+      // 몸의 치수를 바꿔도 자른 꼬리와 회귀 횟수는 그대로 둔다
+      onParamChange: (meta) => (meta.rebuild ? this.sim.rebuild() : this.sim.applyConfig()),
       onSchemeChange: () => {
         this.sim.setScheme(session.scheme);
         this.sim.applyConfig();
@@ -90,7 +94,14 @@ export class RoomScene extends Phaser.Scene {
     this.reader.poll(this.cameras.main);
     if (!this.paused) this.sim.advance(deltaMs / 1000, this.reader.state);
 
+    this.playEvents();
+    // 회귀하면 마지막으로 말을 건 기록관의 방으로 돌아간다
+    if (this.sim.state.room !== this.session.room && hasRoom(this.sim.state.room)) {
+      this.session.room = this.sim.state.room;
+      this.showStatus();
+    }
     if (this.drawnGeneration !== this.sim.generation) this.rebuildViews();
+    this.hud.showDialogue(this.sim.dialogue);
     const { tori } = this.sim;
     this.roomView?.update();
     this.toriView?.update(this.paused ? 0 : dt);
@@ -98,6 +109,15 @@ export class RoomScene extends Phaser.Scene {
     this.follow.update(dt, this.sim.poseOf(tori.torso), tori.facing, this.session.config);
     this.debugDraw.draw(this.sim);
     this.panel.setFps(this.game.loop.actualFps);
+  }
+
+  /** 시뮬레이션에서 일어난 일에 화면 연출을 붙인다 */
+  private playEvents(): void {
+    const camera = this.cameras.main;
+    for (const event of this.sim.drainEvents()) {
+      if (event === 'cut') camera.shake(CUT_SHAKE.ms, CUT_SHAKE.intensity);
+      else camera.flash(REWIND_FLASH_MS, 255, 255, 255);
+    }
   }
 
   private setPaused(paused: boolean): void {
