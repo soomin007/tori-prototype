@@ -17,7 +17,23 @@ export interface TerrainData {
   surface: Surface;
 }
 
-export interface BoxData {
+/**
+ * 방에 놓는 것(NPC, 물건, 결투 상대, 대본 사건)이 나타나는 회귀 횟수 범위(PLAN 7.4). 둘 다 없으면 늘 나타난다.
+ * 방을 다시 만들 때 회귀 횟수로 거른다. 회귀할수록 친구 NPC가 줄어드는 기획을 데이터로 받는 자리다.
+ */
+export interface Appearance {
+  /** 회귀를 이만큼 한 뒤부터 나타난다 */
+  minRewinds?: number;
+  /** 회귀를 이만큼 한 때까지만 나타난다 */
+  maxRewinds?: number;
+}
+
+/** 회귀 횟수가 rewinds일 때 나타나는지 */
+export function appears({ minRewinds = 0, maxRewinds = Infinity }: Appearance, rewinds: number): boolean {
+  return rewinds >= minRewinds && rewinds <= maxRewinds;
+}
+
+export interface BoxData extends Appearance {
   x: number;
   y: number;
   width: number;
@@ -25,6 +41,33 @@ export interface BoxData {
   angle: number;
   /** 꼬리 끝으로 들 수 있는지 */
   grabbable: boolean;
+}
+
+/** 말을 걸기 전까지 앞길을 막는 문. 아랫변 가운데가 (x, y)다. */
+export interface DoorData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * 기록관(PLAN 7.8). 감지 영역에 들어가 E를 누르면 말을 건다. 말을 건 순간이 회귀 지점이 된다는 것은 화면에 알리지 않는다.
+ * 대사에 {번호}와 {시각}을 적으면 number와 time으로 바뀐다. 글은 모두 자리표시다.
+ */
+export interface RecorderData extends Appearance {
+  /** 상태에 이 이름으로 적힌다. 방이 달라도 겹치면 안 된다. */
+  id: string;
+  /** 발밑 가운데 */
+  x: number;
+  y: number;
+  /** 회귀하면 토리가 서는 자리(몸통 중심) */
+  stand: Point;
+  line: string;
+  number: string;
+  time: string;
+  /** 말을 걸어야 지나갈 수 있는 기록관이면 앞길을 막는 문 */
+  door: DoorData | null;
 }
 
 /** 꼬리를 걸고 매달리는 가지. 몸이나 물건과는 부딪히지 않는다. */
@@ -36,6 +79,8 @@ export interface BranchData {
 }
 
 export interface RoomData {
+  /** 방 번호. 숫자 키와 주소의 ?room=, 상태의 room이 이 번호를 쓴다. 테스트용 방은 0이다. */
+  number: number;
   /** 카메라가 벗어나지 않는 범위 */
   bounds: { left: number; top: number; right: number; bottom: number };
   /** 처음 설 자리. 몸통 중심이다. */
@@ -43,6 +88,7 @@ export interface RoomData {
   terrain: readonly TerrainData[];
   boxes: readonly BoxData[];
   branches: readonly BranchData[];
+  recorders: readonly RecorderData[];
 }
 
 /** 바닥 윗면의 y. 아래 도우미는 이 높이에서 위로 잰 값(h)을 받는다. */
@@ -76,6 +122,7 @@ function wall(x0: number, x1: number): TerrainData {
 
 /** 방 1: 이동. 왼쪽부터 평지, 오르막과 내리막, 낮은 턱, 계단, 좁은 발판, 미끄러운 바닥 순서다. */
 const MOVE_ROOM: RoomData = {
+  number: 1,
   bounds: { left: -0.5, top: -3, right: 57.5, bottom: FLOOR_BOTTOM_Y },
   spawn: at(2, 0.5),
   terrain: [
@@ -105,6 +152,7 @@ const MOVE_ROOM: RoomData = {
   ],
   boxes: [],
   branches: [],
+  recorders: [],
 };
 
 /** 바닥이나 다른 상자 위에 놓인 상자. h는 아랫면의 높이다. */
@@ -127,6 +175,7 @@ function branch(x: number, h: number, length = 0.7): BranchData {
 
 /** 방 2: 꼬리. 왼쪽부터 크기가 다른 상자와 작은 물건, 높이가 다른 가지 3개(아래는 구덩이), 좁은 틈, 블록 탑 순서다. */
 const TAIL_ROOM: RoomData = {
+  number: 2,
   bounds: { left: -0.5, top: -3, right: 40.5, bottom: FLOOR_BOTTOM_Y },
   spawn: at(3, 0.5),
   terrain: [
@@ -153,10 +202,50 @@ const TAIL_ROOM: RoomData = {
     ...tower(34.5, 6, 0.4, 0.3),
   ],
   branches: [branch(15.4, 2.7), branch(18.2, 2.8), branch(21.2, 2.9)],
+  recorders: [],
 };
 
-/** 방 번호 - 1이 자리다. 방 3은 M4, 방 4는 M3에서 채운다. */
-export const ROOMS: readonly RoomData[] = [MOVE_ROOM, TAIL_ROOM];
+/**
+ * 기록관과 그 앞에 서는 자리. 토리는 기록관의 왼쪽에 오른쪽을 보고 선다.
+ * gateX를 주면 그 자리에 문을 세워, 말을 걸기 전까지 지나가지 못한다.
+ */
+function recorder(id: string, x: number, gateX: number | null, line = '기록관 대사 1'): RecorderData {
+  return {
+    id,
+    ...at(x, 0),
+    stand: at(x - 1.1, 0.5),
+    line,
+    number: '번호 1',
+    time: '시각 1',
+    // 높이 2.8m는 뛰어도 넘지 못한다(점프로 몸통 위가 바닥에서 약 2.1m까지 오른다)
+    door: gateX === null ? null : { ...at(gateX, 0), width: 0.3, height: 2.8 },
+  };
+}
+
+/**
+ * 방 3: 결투 시험장(PLAN 9절). 왼쪽부터 기록관과 문, 짧은 길, 결투장 순서다.
+ * 길에는 짧아진 꼬리로 해 볼 것(작은 물건, 상자, 낮은 가지)을 둔다. 가지는 밑동만 남은 꼬리로도 뛰어서 닿는 높이다.
+ */
+const DUEL_ROOM: RoomData = {
+  number: 3,
+  bounds: { left: -0.5, top: -3, right: 33.5, bottom: FLOOR_BOTTOM_Y },
+  spawn: at(2, 0.5),
+  terrain: [
+    wall(-1.5, 0),
+    ground(0, 13),
+    // 가지 아래의 얕은 구덩이. 매달린 모습이 보이게 판다
+    ground(13, 15.6, -0.5),
+    ground(15.6, 33),
+    // 결투장(x 19~32). 결투 상대와 진행은 묶음 나에서 채운다
+    wall(33, 34.5),
+  ],
+  boxes: [box(9, 0.18, 0.18, 0, true), box(11, 0.5)],
+  branches: [branch(14.3, 2)],
+  recorders: [recorder('duel-1', 5.5, 6.7)],
+};
+
+/** 방 번호 - 1이 자리다. 방 4는 아직 없다. */
+export const ROOMS: readonly RoomData[] = [MOVE_ROOM, TAIL_ROOM, DUEL_ROOM];
 
 export function hasRoom(room: number): boolean {
   return ROOMS[room - 1] !== undefined;

@@ -23,6 +23,17 @@ interface Options {
   roomData?: RoomData;
   config?: Record<string, ParamValue>;
   settle?: number;
+  /** 남은 꼬리 구간. 없으면 설정의 구간 수 전부다. */
+  sectionsLeft?: number;
+}
+
+/** 자르고 남은 구간 수마다 다시 돌리는 테스트에 쓴다(PLAN 10절 묶음 가) */
+const SECTIONS_LEFT = [3, 2, 1, 0] as const;
+
+/** 남은 구간이 sectionsLeft일 때 꼬리 길이 */
+function tailLength(sectionsLeft: number): number {
+  const { baseLinks, linksPerSection, linkLength } = DEFAULTS.tail;
+  return (baseLinks + sectionsLeft * linksPerSection) * linkLength;
 }
 
 class Run {
@@ -32,10 +43,10 @@ class Run {
   maxGap = 0;
   maxLinkSpeed = 0;
 
-  constructor(scheme: Scheme, { roomData = FLAT, config = {}, settle = 1.5 }: Options = {}) {
+  constructor(scheme: Scheme, { roomData = FLAT, config = {}, settle = 1.5, sectionsLeft }: Options = {}) {
     const values = cloneConfig(DEFAULTS);
     for (const [path, value] of Object.entries(config)) setParam(values, path, value);
-    this.sim = new Simulation(values, roomData, scheme);
+    this.sim = new Simulation(values, roomData, scheme, sectionsLeft === undefined ? {} : { sectionsLeft });
     this.seconds(settle);
     this.clear();
   }
@@ -89,10 +100,12 @@ function branchAt(x: number, y: number): BranchData {
 
 describe('꼬리로 매달리기', () => {
   /** 꼬리 끝이 가지에 닿은 채로 시작한다 */
-  function hang(start: '가만히' | '수평', scheme: Scheme): Run {
+  function hang(start: '가만히' | '수평', scheme: Scheme, sectionsLeft = DEFAULTS.tail.sections): Run {
     const branches = [branchAt(30, -6)];
-    const spawn = start === '가만히' ? { x: 30 + DEFAULTS.tail.hipX, y: -4.4 } : { x: 30 + 1.5 + DEFAULTS.tail.hipX, y: -6 };
-    const run = new Run(scheme, { roomData: { ...room(FLOOR, [], branches), spawn }, settle: 0 });
+    const length = tailLength(sectionsLeft);
+    const { hipX } = DEFAULTS.tail;
+    const spawn = start === '가만히' ? { x: 30 + hipX, y: -6 + length + 0.1 } : { x: 30 + length + hipX, y: -6 };
+    const run = new Run(scheme, { roomData: { ...room(FLOOR, [], branches), spawn }, settle: 0, sectionsLeft });
     run.input.held.grab = true;
     run.input.held.pointerGrab = true;
     const { tail } = run.sim.tori;
@@ -106,13 +119,16 @@ describe('꼬리로 매달리기', () => {
     return run;
   }
 
-  for (const scheme of ['A', 'B'] as const) {
-    for (const start of ['가만히', '수평'] as const) {
-      it(`${scheme} 방식: ${start} 매달린 5초 동안 관절 벌어짐이 꼬리 길이의 5%를 넘지 않는다`, () => {
-        const run = hang(start, scheme).seconds(5);
-        expect(run.sim.tori.hanging).toBe(true);
-        expect(run.maxGap).toBeLessThan(0.05);
-      });
+  for (const sectionsLeft of SECTIONS_LEFT) {
+    for (const scheme of ['A', 'B'] as const) {
+      for (const start of ['가만히', '수평'] as const) {
+        it(`남은 구간 ${sectionsLeft}, ${scheme} 방식: ${start} 매달린 5초 동안 관절 벌어짐이 꼬리 길이의 5%를 넘지 않는다`, () => {
+          const run = hang(start, scheme, sectionsLeft).seconds(5);
+          expect(run.sim.tori.tail.links.length * DEFAULTS.tail.linkLength).toBeCloseTo(tailLength(sectionsLeft));
+          expect(run.sim.tori.hanging).toBe(true);
+          expect(run.maxGap).toBeLessThan(0.05);
+        });
+      }
     }
   }
 
@@ -394,27 +410,29 @@ describe('B 방식의 잡을 대상', () => {
 });
 
 describe('돌아서기', () => {
-  for (const scheme of ['A', 'B'] as const) {
-    for (const hipX of [DEFAULTS.tail.hipX, 0]) {
-      it(`${scheme} 방식, 밑동 ${hipX}m: 몸이 크게 기울지 않고 꼬리가 벌어지지 않는다`, () => {
-        const run = new Run(scheme, { config: { 'tail.hipX': hipX } });
-        if (scheme === 'A') run.point(-1, -0.6);
-        // 1초마다 돌아서며 왕복하고 제자리에서도 돈다
-        run.seconds(6, (time) => {
-          run.input.moveX = Math.floor(time) % 2 === 0 ? -1 : 1;
-        });
-        run.input.moveX = 0;
-        run.seconds(1);
-        for (const direction of [-1, 1]) {
-          run.input.moveX = direction;
-          run.seconds(FIXED_DT);
+  for (const sectionsLeft of SECTIONS_LEFT) {
+    for (const scheme of ['A', 'B'] as const) {
+      for (const hipX of [DEFAULTS.tail.hipX, 0]) {
+        it(`남은 구간 ${sectionsLeft}, ${scheme} 방식, 밑동 ${hipX}m: 몸이 크게 기울지 않고 꼬리가 벌어지지 않는다`, () => {
+          const run = new Run(scheme, { config: { 'tail.hipX': hipX }, sectionsLeft });
+          if (scheme === 'A') run.point(-1, -0.6);
+          // 1초마다 돌아서며 왕복하고 제자리에서도 돈다
+          run.seconds(6, (time) => {
+            run.input.moveX = Math.floor(time) % 2 === 0 ? -1 : 1;
+          });
           run.input.moveX = 0;
           run.seconds(1);
-        }
-        expect(run.maxTilt).toBeLessThan(30);
-        expect(run.maxGap).toBeLessThan(0.05);
-        expect(run.maxLinkSpeed).toBeLessThan(25);
-      });
+          for (const direction of [-1, 1]) {
+            run.input.moveX = direction;
+            run.seconds(FIXED_DT);
+            run.input.moveX = 0;
+            run.seconds(1);
+          }
+          expect(run.maxTilt).toBeLessThan(30);
+          expect(run.maxGap).toBeLessThan(0.05);
+          expect(run.maxLinkSpeed).toBeLessThan(25);
+        });
+      }
     }
   }
 
@@ -441,6 +459,30 @@ describe('돌아서기', () => {
     expect(run.maxTilt).toBeLessThan(40);
     expect(run.maxGap).toBeLessThan(0.05);
   });
+});
+
+describe('짧아진 꼬리', () => {
+  for (const sectionsLeft of SECTIONS_LEFT) {
+    it(`남은 구간 ${sectionsLeft}: B 방식으로 휘두르면 꼬리 끝이 밑동 앞으로 넘어가고 몸이 크게 기울지 않는다`, () => {
+      const run = new Run('B', { sectionsLeft });
+      run.input.pressed.attack = true;
+      let forward = -Infinity;
+      run.seconds(0.9, () => {
+        forward = Math.max(forward, run.tip.x - run.sim.tori.tail.hip(1).x);
+      });
+      expect(forward).toBeGreaterThan(0.15);
+      expect(run.maxTilt).toBeLessThan(45);
+      expect(run.maxGap).toBeLessThan(0.05);
+    });
+
+    it(`남은 구간 ${sectionsLeft}: A 방식으로 커서를 앞뒤로 휘둘러도 꼬리가 벌어지지 않는다`, () => {
+      const run = new Run('A', { sectionsLeft });
+      run.seconds(3, (time) => run.point(Math.cos(time * 6) * 1.2, -0.6 + Math.sin(time * 6) * 0.5));
+      expect(run.maxTilt).toBeLessThan(45);
+      expect(run.maxGap).toBeLessThan(0.05);
+      expect(run.maxLinkSpeed).toBeLessThan(25);
+    });
+  }
 });
 
 describe('방 2', () => {
