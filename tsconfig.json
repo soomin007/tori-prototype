@@ -13,6 +13,8 @@
     "noFallthroughCasesInSwitch": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
+    // 능력표(src/config/abilities.json)를 기획이 직접 고치는 JSON으로 둔다
+    "resolveJsonModule": true,
     // Phaser와 Rapier의 타입 파일이 TypeScript 7에서 오류를 낸다 (known-issues 5번)
     "skipLibCheck": true
   },

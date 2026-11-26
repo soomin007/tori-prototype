@@ -1,0 +1,22 @@
+{
+  "3": {
+    "canGrab": true, "canHang": true, "balance": 1, "whipPower": 1,
+    "reach": 1, "sweep": 1, "pull": 1, "swingSpeed": 1, "recovery": 1,
+    "moveSpeed": 1, "jump": 1, "poise": 1, "canParry": false, "maxHealth": 1, "carryMass": 3
+  },
+  "2": {
+    "canGrab": true, "canHang": true, "balance": 1, "whipPower": 1,
+    "reach": 1, "sweep": 1, "pull": 1, "swingSpeed": 1, "recovery": 1,
+    "moveSpeed": 1, "jump": 1, "poise": 1, "canParry": false, "maxHealth": 1, "carryMass": 3
+  },
+  "1": {
+    "canGrab": true, "canHang": true, "balance": 1, "whipPower": 1,
+    "reach": 1, "sweep": 1, "pull": 1, "swingSpeed": 1, "recovery": 1,
+    "moveSpeed": 1, "jump": 1, "poise": 1, "canParry": false, "maxHealth": 1, "carryMass": 3
+  },
+  "0": {
+    "canGrab": true, "canHang": true, "balance": 1, "whipPower": 1,
+    "reach": 1, "sweep": 1, "pull": 1, "swingSpeed": 1, "recovery": 1,
+    "moveSpeed": 1, "jump": 1, "poise": 1, "canParry": false, "maxHealth": 1, "carryMass": 3
+  }
+}
