@@ -144,6 +144,40 @@ describe('체험판의 첫 방(등록장 길)', () => {
     expect(new Simulation(cloneConfig(DEFAULTS), roomData, 'B', { rewinds: 1 }).npcs.map(({ id }) => id)).toEqual([second.id]);
   });
 
+  for (const scheme of ['A', 'B'] as const) {
+    it(`${scheme} 방식: 기록관에게 말을 걸고 결투 1에 들어가면 구조물에 깔리고, 버둥거리면 기록관 앞으로 돌아와 다시 할 수 있다`, () => {
+      const [recorder] = GI.recorders;
+      const run = new Walker(scheme, { ...GI, spawn: recorder.stand });
+      const talk = (): void => {
+        run.input.pressed.interact = true;
+        run.seconds(FIXED_DT);
+      };
+      talk();
+      talk();
+      run.input.moveX = 1;
+      run.seconds(3);
+      run.input.moveX = 0;
+      const [duel] = run.sim.duels;
+      expect(duel.phase).not.toBe('waiting');
+      for (let i = 0; i < 20 * 60 && !duel.pinned; i += 1) run.seconds(FIXED_DT);
+      expect(duel.pinned).toBe(true);
+      run.seconds(2.5, (time) => {
+        run.input.moveX = Math.floor(time / 0.1) % 2 === 0 ? 1 : -1;
+      });
+      run.input.moveX = 0;
+      run.seconds(DEFAULTS.cut.rewindSeconds + 0.2);
+      expect(run.sim.state).toMatchObject({ rewinds: 1, sectionsLeft: 2, recorder: recorder.id });
+      expect(Math.abs(run.center.x - recorder.stand.x)).toBeLessThan(0.5);
+      expect(run.sim.dialogue?.recorder).toBe(recorder.id);
+      // 문은 열린 채로 남아 있어 대사를 닫고 바로 다시 들어갈 수 있다
+      talk();
+      run.input.moveX = 1;
+      run.seconds(3);
+      expect(run.sim.duels[0].phase).not.toBe('waiting');
+      expect(run.sim.scripted[0].first).toBe(false);
+    });
+  }
+
   it('결투 1을 이기면 "체험판 끝"이다', () => {
     const arena = GI.duels[0];
     const run = new Walker('B', { ...GI, spawn: at(arena.startX + 0.5) }, { rewinds: 1, sectionsLeft: 2 });
