@@ -402,8 +402,9 @@ const GI_ROOM: RoomData = {
       duel: 'gi-duel-1',
       // 싸움을 시작하고 8초 뒤나, 토리의 체력이 절반 밑으로 내려가면 온다
       trigger: { fightSeconds: 8, toriHealthBelow: 0.5 },
-      drop: { ...at(34.5, 3.7), width: 1.4, height: 0.4 },
-      ledge: { left: 27.5, right: 41.5, y: at(0, 4.6).y },
+      // 발판 위 인물의 머리가 화면 위쪽의 전광판에 가리지 않는 높이다
+      drop: { ...at(34.5, 3.2), width: 1.4, height: 0.4 },
+      ledge: { left: 27.5, right: 41.5, y: at(0, 3.9).y },
     },
   ],
   npcs: [npc('gi-friend-1', 4.4), npc('gi-friend-2', 21.9)],

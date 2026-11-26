@@ -11,8 +11,8 @@ import type { Simulation } from '../sim/simulation';
 const COLORS = {
   ledge: 0x4a5563,
   ledgeEdge: 0x2f3742,
-  figure: 0x6e5a7e,
-  figureHead: 0x857196,
+  figure: 0x59616b,
+  figureHead: 0x6f7883,
   warn: 0xff8a3d,
   eye: 0x20262d,
   rope: 0xc9b48a,
@@ -61,7 +61,7 @@ export class EventView {
     for (const object of [this.still, this.moving, this.crates]) object.destroy();
   }
 
-  /** 발판 위의 인물. 구조물 위를 따라 걷고, 예고하는 동안 깜빡이며 앞으로 숙인다. */
+  /** 발판 위의 인물. 구조물 위를 따라 걷다가 예고하는 동안 멈춰 깜빡이며 앞으로 숙인다. 색은 결투 상대와 겹치지 않게 회색이다. */
   private drawFigure(event: ScriptedEvent): void {
     const g = this.moving;
     const { y } = event.data.ledge;

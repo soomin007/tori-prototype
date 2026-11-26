@@ -36,9 +36,9 @@ export interface ArenaInside {
 
 /**
  * 결투에 딸린 대본 사건 하나. 결투가 시작되면 매달린 구조물이 토리 위로 천천히 따라오고(scripted.aimSpeed),
- * 계기가 오면 위쪽 인물이 예고한 뒤 떨어진다. 몸통이나 머리에 닿으면 토리를 깔고, 결투는 쓰러졌을 때처럼 버둥거림으로 간다(sim/duel.ts).
- * 따라오는 빠르기가 토리의 최고 속도보다 느려서, 예고를 보고 달리면 벗어난다. 떨어지기 시작하면 더 따라오지 않는다.
- * 처음 한 번(first)은 예고와 낙하 동안 토리보다 두 배 빠르게 따라와 반드시 깐다.
+ * 계기가 오면 그 자리에 멈춘 채 위쪽 인물이 예고한 뒤 떨어진다. 몸통이나 머리에 닿으면 토리를 깔고,
+ * 결투는 쓰러졌을 때처럼 버둥거림으로 간다(sim/duel.ts). 예고가 시작되면 떨어질 자리가 정해지므로, 예고를 보고 비키면 피한다.
+ * 처음 한 번(first)은 예고와 낙하 동안에도 토리보다 두 배 빠르게 따라와 반드시 깐다.
  * 구조물은 부딪히는 바디 없이 사각형으로만 움직인다. 물건이나 상대를 밀지 않고, 깔린 토리를 붙잡는 것은 Tori.pinDown이 한다.
  * 회귀하면 방을 다시 만들면서 새로 생기므로 같은 계기에 같은 일이 일어난다.
  */
@@ -108,7 +108,8 @@ export class ScriptedEvent {
         }
         return false;
       case 'warning':
-        this.aim(toriX, this.first ? this.chaseSpeed : scripted.aimSpeed);
+        // 떨어질 자리는 예고가 시작될 때 정해진다. 처음 한 번만 계속 따라온다.
+        if (this.first) this.aim(toriX, this.chaseSpeed);
         // 떨어지는 단계로 넘어가는 곳은 여기 하나다
         if (this.elapsed + 1e-9 >= scripted.warnSeconds) {
           this.enter('falling');

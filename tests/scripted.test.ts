@@ -84,27 +84,26 @@ describe('대본 사건', () => {
     expect(run.duel.count).toBe(1);
   });
 
-  it('토리의 체력이 계기의 비율 밑으로 내려가면 예고가 오고, 예고와 낙하 동안 상대는 새 공격을 시작하지 않는다', () => {
+  it('토리의 체력이 계기의 비율 밑으로 내려가면 예고가 오고, 예고와 낙하 동안 상대는 공격하지 않고 물러난다', () => {
     const quick = { 'foe1.measureMinSeconds': 0.2, 'foe1.measureMaxSeconds': 0.3 };
     const run = fight('B', { config: quick, event: { ...DROP, trigger: { toriHealthBelow: 0.5 } } });
     const event = run.sim.scripted[0];
     let warnedAt: number | null = null;
     // 체력은 물리 스텝 뒤에 줄고 계기는 다음 스텝 앞에서 보므로, 비율 밑으로 내려간 뒤 한 스텝까지는 기다린다
     let lateSteps = 0;
-    const windups: FoePhase[] = [];
-    let previous = run.foe.phase;
+    // 예고가 시작된 스텝 다음부터, 떨어져 끝날 때까지 상대가 거친 단계
+    const during = new Set<FoePhase>();
     run.until(() => {
       const ratio = run.duel.toriHealth / run.duel.toriMaxHealth;
       if (event.phase === 'waiting' && ratio < 0.5) lateSteps += 1;
       if (event.phase !== 'waiting') warnedAt ??= ratio;
-      if (event.busy && run.foe.phase === 'windup' && previous !== 'windup') windups.push(run.foe.phase);
-      previous = run.foe.phase;
+      if (event.busy && event.elapsed > FIXED_DT * 1.5) during.add(run.foe.phase);
       return resolved(event.phase);
     }, 30);
     expect(warnedAt).not.toBeNull();
     expect(warnedAt as unknown as number).toBeLessThan(0.5);
     expect(lateSteps).toBeLessThanOrEqual(1);
-    expect(windups).toEqual([]);
+    expect([...during]).toEqual(['retreat']);
     expect(event.phase).toBe('pinned');
   });
 
@@ -154,6 +153,29 @@ describe('대본 사건', () => {
     };
     expect(escape({})).toBe('pinned');
     expect(escape({ rewinds: 1, sectionsLeft: 2 })).toBe('landed');
+  });
+
+  it('회귀한 뒤에는 벽과 상대 사이에 몰려 있어도, 예고를 보고 상대 쪽으로 비키면 상대가 물러나 피한다', () => {
+    // 싸움이 시작되면 왼쪽 벽(x 8)까지 물러난다. 상대는 돌진 없이 밀치기 거리(간격 1m 안)까지 다가와 선다.
+    const closeIn = { ...PASSIVE, 'foe1Dash.minRange': 50, 'foe1Dash.maxRange': 60 };
+    const cornered = (initial: Partial<GameState>): { phase: EventPhase; gap: number; wall: number } => {
+      const run = fight('B', { initial, config: closeIn });
+      const event = run.sim.scripted[0];
+      run.input.moveX = -1;
+      run.seconds(1.5);
+      run.input.moveX = 0;
+      run.until(() => event.phase === 'warning', 10);
+      const gap = run.foe.gapTo(run.center.x, DEFAULTS.torso.length / 2);
+      const wall = run.center.x - 8;
+      run.input.moveX = 1;
+      run.until(() => resolved(event.phase), 4);
+      return { phase: event.phase, gap, wall };
+    };
+    const retry = cornered({ rewinds: 1, sectionsLeft: 2 });
+    expect(retry.gap).toBeLessThan(1.1);
+    expect(retry.wall).toBeLessThan(2.5);
+    expect(retry.phase).toBe('landed');
+    expect(cornered({}).phase).toBe('pinned');
   });
 
   it('처음에는 사건 전에 토리가 쓰러지지 않고, 쓰러질 만큼 맞으면 사건이 바로 온다', () => {

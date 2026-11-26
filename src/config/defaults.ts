@@ -207,7 +207,7 @@ export interface GameConfig extends OpponentGroups {
     aimSpeed: number;
     fallAccel: number;
     forceFirst: boolean;
-    holdFoe: boolean;
+    foeBacksOff: boolean;
     pinCount: boolean;
     repinCuts: boolean;
     retrySeconds: number;
@@ -428,10 +428,10 @@ export const DEFAULTS: GameConfig = {
   // 대본 사건(PLAN 7.8). 사건마다의 계기와 배치는 방 데이터(rooms.ts의 events)에 있다
   scripted: {
     warnSeconds: 1.2, // 계기가 온 뒤 구조물이 떨어질 때까지 위쪽 인물이 예고하는 시간. 0이면 오류다(예고 없이 동작하지 못한다)
-    aimSpeed: 2.5, // m/s. 결투가 시작된 뒤 구조물이 토리 위로 따라오는 빠르기. 토리의 최고 속도(4)보다 느려서 예고를 보고 달리면 벗어난다
+    aimSpeed: 2.5, // m/s. 결투가 시작된 뒤 예고 전까지 구조물이 토리 위로 따라오는 빠르기. 예고가 시작되면 그 자리에 멈춘다
     fallAccel: 30, // m/s². 3.7m 위에서 0.5초 만에 떨어진다
     forceFirst: true, // 회귀 0번에는 반드시 깔린다. 예고와 낙하 동안 토리보다 두 배 빠르게 따라가고, 사건 전에는 두 참가자의 체력이 1 밑으로 내려가지 않는다(PLAN 7.8)
-    holdFoe: true, // 예고하고 떨어지는 동안 상대가 새 공격을 시작하지 않는다. 예고를 보고 피할 틈을 준다
+    foeBacksOff: true, // 예고하고 떨어지는 동안 상대가 공격을 멈추고 물러난다. 벽과 상대 사이에 몰려 있어도 비킬 자리가 생긴다
     pinCount: true, // 깔려 있는 동안 심판이 센다. 끄면 자를 구간이 있는 한 세지 않는다
     repinCuts: true, // 회귀한 뒤 또 깔리면 처음처럼 버둥거려 자른다. 끄면 자르지 않고 기록관 앞으로 돌아가 다시 한다(11.1의 4번)
     retrySeconds: 1.5, // repinCuts를 끈 때, 다시 깔린 뒤 기록관 앞으로 돌아갈 때까지
@@ -632,7 +632,7 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'scripted.aimSpeed': { label: '예고 중 따라오기 (m/s)', min: 0, max: 10, step: 0.1 },
   'scripted.fallAccel': { label: '떨어지는 가속 (m/s²)', min: 2, max: 80, step: 1 },
   'scripted.forceFirst': { label: '처음에는 반드시 깔림' },
-  'scripted.holdFoe': { label: '예고 중 상대 공격 멈춤' },
+  'scripted.foeBacksOff': { label: '예고 중 상대 물러남' },
   'scripted.pinCount': { label: '깔리면 심판 카운트' },
   'scripted.repinCuts': { label: '다시 깔리면 자르기' },
   'scripted.retrySeconds': { label: '다시 하기까지 (초)', min: 0.2, max: 5, step: 0.1 },

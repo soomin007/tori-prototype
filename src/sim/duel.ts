@@ -177,10 +177,13 @@ export class Duel {
     return full;
   }
 
-  /** 상대에게 시킬 일. 대본 사건이 예고하고 떨어지는 동안에는 새 공격을 시작하지 않는다(scripted.holdFoe). */
+  /**
+   * 상대에게 시킬 일. 대본 사건이 예고하고 떨어지는 동안에는 공격을 멈추고 물러난다(scripted.foeBacksOff).
+   * 토리가 벽과 상대 사이에 몰려 있으면 예고를 보고도 비킬 자리가 없었다(2단계에서 배포한 화면으로 확인).
+   */
   private get order(): FoeOrder {
     const order = ORDERS[this.phase];
-    if (order === 'fight' && this.config.scripted.holdFoe && this.events.some((event) => event.busy)) return 'hold';
+    if (order === 'fight' && this.config.scripted.foeBacksOff && this.events.some((event) => event.busy)) return 'retreat';
     return order;
   }
 
