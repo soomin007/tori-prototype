@@ -130,7 +130,11 @@ export interface GameConfig {
     windCurlDeg: number;
     strikeRaiseDeg: number;
     strikeCurlDeg: number;
+    sweepCurlDeg: number;
+    chopSeconds: number;
     strikePower: number;
+    strikeBrace: number;
+    strikeBraceFadeDeg: number;
     reachFactor: number;
     behindPenalty: number;
     switchMargin: number;
@@ -301,14 +305,18 @@ export const DEFAULTS: GameConfig = {
     waveDeg: 6, // 살랑이는 폭(관절마다)
     waveHz: 0.7,
     waveLag: 0.5, // 관절 하나마다 물결이 늦어지는 각(라디안)
-    windSeconds: 0.08, // 휘두르기 전 뒤로 젖히는 시간
+    windSeconds: 0, // 휘두르기 전 뒤로 젖히는 시간. 결투에서 누르자마자 나가도록 0.08에서 0으로 줄였다(1단계)
     strikeSeconds: 0.45, // 앞으로 넘기는 시간
     recoverSeconds: 0.3, // 평소 자세로 돌아오는 시간
     windRaiseDeg: 25, // 젖힐 때 밑동 각
     windCurlDeg: -10, // 젖힐 때 관절마다 말리는 각(음수면 뒤로)
     strikeRaiseDeg: 160, // 칠 때 밑동 각. 머리 위를 넘어 앞쪽까지(PLAN 7.3)
-    strikeCurlDeg: 6, // 칠 때 관절마다 말리는 각(양수면 앞으로)
-    strikePower: 1.2, // 칠 때 모터 세기 배율
+    strikeCurlDeg: 10, // 내려칠 때 관절마다 말리는 각(양수면 앞으로). 꼬리 끝이 몸 앞 아래로 감겨 바닥의 물건까지 닿는다
+    sweepCurlDeg: 0, // 넘길 때 관절마다 말리는 각. 곧게 넘겨야 머리 위를 빨리 지난다
+    chopSeconds: 0.08, // 넘기기 시작하고 이 시간이 지나면 strikeCurlDeg로 감아 내려친다. 처음부터 감으면 끝이 느려져 바닥의 물건을 못 친다
+    strikePower: 2.5, // 칠 때 모터 세기 배율. 1.2에서는 누른 뒤 0.4~0.45초에 몸 앞을 쳤고, 지금 값들로 0.25~0.27초에 친다(PLAN 7.3)
+    strikeBrace: 1.2, // 칠 때 다리가 꼬리의 반동을 버티는 비율. 평소 값(tail.brace 0.65)이면 2.5배 세기에서 몸이 46도 기운다
+    strikeBraceFadeDeg: 25, // 칠 때 버티는 토크가 몸이 기운 쪽으로 밀면, 기울기가 이 각에 닿을 때 버티지 않는다
     reachFactor: 2, // 꼬리 길이의 몇 배 안에 있는 것을 잡으러 가는지
     behindPenalty: 0.8, // 등진 쪽에 있는 것은 이만큼 더 먼 것으로 친다
     switchMargin: 0.3, // 노리던 것보다 이만큼 더 가까워야 바꾼다
@@ -477,7 +485,11 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'auto.windCurlDeg': { label: '젖힐 때 말림 (도)', min: -30, max: 30, step: 0.5 },
   'auto.strikeRaiseDeg': { label: '칠 때 밑동 (도)', min: 30, max: 165, step: 1 },
   'auto.strikeCurlDeg': { label: '칠 때 말림 (도)', min: -30, max: 30, step: 0.5 },
+  'auto.sweepCurlDeg': { label: '넘길 때 말림 (도)', min: -30, max: 30, step: 0.5 },
+  'auto.chopSeconds': { label: '내려치기까지 (초)', min: 0, max: 1, step: 0.01 },
   'auto.strikePower': { label: '칠 때 세기 배율', min: 0.5, max: 5, step: 0.1 },
+  'auto.strikeBrace': { label: '칠 때 반동 버티기', min: 0, max: 1.5, step: 0.05 },
+  'auto.strikeBraceFadeDeg': { label: '칠 때 버티기 줄이는 기울기 (도)', min: 1, max: 90, step: 1 },
   'auto.reachFactor': { label: '잡으러 가는 거리 배율', min: 0.5, max: 3, step: 0.05 },
   'auto.behindPenalty': { label: '등진 쪽 거리 더하기 (m)', min: 0, max: 3, step: 0.05 },
   'auto.switchMargin': { label: '대상 바꾸기 여유 (m)', min: 0, max: 2, step: 0.05 },

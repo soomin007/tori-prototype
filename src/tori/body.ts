@@ -184,7 +184,21 @@ export class Tori {
     if (command.grab && !this.canGrab) this.wriggle(command);
     const swing = this.tail.drive(command, this.turn, this.grab.hooked);
     // 밑동 모터의 반작용 가운데 꼬리 무게를 버티는 몫을 뺀 나머지가 반동이다. 그 일부를 다리가 버틴다.
-    if (this.grounded) this.torso.addTorque(swing * this.config.tail.brace, true);
+    if (this.grounded) {
+      const brace = command.brace === undefined ? swing * this.config.tail.brace : this.strikeBrace(swing * command.brace);
+      this.torso.addTorque(brace, true);
+    }
+  }
+
+  /**
+   * B 방식으로 칠 때 다리가 버티는 토크. 몸이 이미 기운 쪽으로 더 밀면 기운 만큼 줄여 auto.strikeBraceFadeDeg에서 0이 되게 한다.
+   * 칠 때는 반작용보다 세게 버티는데, 머리가 상대나 벽에 닿아 있으면 그 토크가 몸을 앞으로 고꾸라뜨렸다(133도).
+   */
+  private strikeBrace(torque: number): number {
+    const tilt = lerpAngle(0, this.torso.rotation() - this.slope * this.config.upright.slopeFollow, 1);
+    if (torque * tilt <= 0) return torque;
+    const fade = Math.max(this.config.auto.strikeBraceFadeDeg * DEG, 1e-3);
+    return torque * Math.max(0, 1 - Math.abs(tilt) / fade);
   }
 
   /** 잡기 능력이 없을 때 끝의 마디 셋을 꼼지락거린다 */

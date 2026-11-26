@@ -71,12 +71,15 @@ export class AutoTail implements TailController {
     const wind = raisedPose(context, auto.windRaiseDeg, auto.windCurlDeg);
     const strike = raisedPose(context, auto.strikeRaiseDeg, auto.strikeCurlDeg);
     const strikeEnd = auto.windSeconds + auto.strikeSeconds;
+    const chop = auto.windSeconds + auto.chopSeconds;
     if (time < auto.windSeconds) {
       command.pose = blend(idle, wind, smooth(time / auto.windSeconds));
     } else if (time < strikeEnd) {
-      // 목표를 한 번에 앞으로 옮기고, 얼마나 빨리 따라갈지는 모터의 힘 상한이 정한다
-      command.pose = strike;
+      // 목표를 한 번에 앞으로 옮기고, 얼마나 빨리 따라갈지는 모터의 힘 상한이 정한다.
+      // 힘 상한에 닿은 모터의 토크는 어림값이 실제와 같아서, 이때는 다리가 더 세게 버텨도 떨리지 않는다(known-issues 13번).
+      command.pose = time < chop ? raisedPose(context, auto.strikeRaiseDeg, auto.sweepCurlDeg) : strike;
       command.strength = auto.strikePower;
+      command.brace = auto.strikeBrace;
     } else {
       command.pose = blend(strike, idle, smooth((time - strikeEnd) / auto.recoverSeconds));
     }
