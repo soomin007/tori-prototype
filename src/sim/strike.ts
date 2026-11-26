@@ -30,12 +30,14 @@ export class Strikes {
   private readonly cooldown = new Map<SimObject | Opponent, number>();
   private readonly flying = new Set<SimObject>();
   private linkVelocity: Point[] = [];
+  private torsoVelocity: Point = { x: 0, y: 0 };
   private objectVelocity: Point[] = [];
   private foeVelocity: Point[] = [];
 
   /** 물리 스텝 직전. 부딪힌 뒤에는 속도가 서로 섞이므로 부딪히기 전 속도를 적어 둔다. */
   before(tori: Tori, objects: readonly SimObject[], foes: readonly Opponent[] = []): void {
     this.linkVelocity = tori.tail.links.map(({ body }) => body.linvel());
+    this.torsoVelocity = tori.torso.linvel();
     this.objectVelocity = objects.map(({ body }) => body.linvel());
     this.foeVelocity = foes.map(({ body }) => body.linvel());
   }
@@ -66,12 +68,14 @@ export class Strikes {
 
       let fastest: { velocity: Point; speed: number; link: number } | null = null;
       tori.tail.links.forEach(({ collider }, i) => {
-        const velocity = {
-          x: this.linkVelocity[i].x - this.objectVelocity[o].x,
-          y: this.linkVelocity[i].y - this.objectVelocity[o].y,
-        };
+        const link = this.linkVelocity[i];
+        const velocity = { x: link.x - this.objectVelocity[o].x, y: link.y - this.objectVelocity[o].y };
         const speed = Math.hypot(velocity.x, velocity.y);
         if (speed < hit.minSpeed || speed <= (fastest?.speed ?? 0)) return;
+        // 물건을 치는 것은 꼬리를 휘두를 때다. 몸째 뛰거나 달려서 꼬리가 함께 움직인 것은 치지 않는다.
+        // 몸통에 대한 속도를 보지 않으면, 폐품 옆에서 뛰기만 해도 폐품이 5m 넘게 튕겨 올랐다(known-issues 24번).
+        const swing = Math.hypot(link.x - this.torsoVelocity.x, link.y - this.torsoVelocity.y);
+        if (swing < hit.minSpeed) return;
         if (touching(world, collider, object.collider)) fastest = { velocity, speed, link: i };
       });
       if (!fastest) return;

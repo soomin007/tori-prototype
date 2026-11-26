@@ -94,11 +94,16 @@ describe('체험판의 첫 방(등록장 길)', () => {
       expect(run.junk.x).toBeGreaterThan(LEDGE.left - 0.6);
       // 오른 뒤에도 계속 걸어 턱 반대편으로 내려가므로, 턱 위에 선 적이 있는지를 본다
       let climbed = false;
+      let junkTop = run.junk.y;
       run.seconds(3, (time) => {
         run.input.pressed.jump = time % 1 < FIXED_DT;
         climbed ||= run.center.x > LEDGE.left + 0.3 && run.center.x < LEDGE.right && run.center.y < LEDGE.top;
+        junkTop = Math.min(junkTop, run.junk.y);
       });
       expect(climbed).toBe(true);
+      // 폐품 옆에서 뛰어도 폐품은 튕겨 오르지 않고 턱 밑에 남는다(known-issues 24번)
+      expect(junkTop).toBeGreaterThan(FLOOR_Y - 1);
+      expect(run.junk.x).toBeLessThan(LEDGE.left);
     });
   }
 
