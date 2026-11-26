@@ -19,8 +19,8 @@ export type GroupName = keyof typeof Group;
 
 /**
  * 꼬리는 자기 몸과 부딪히지 않는다(PLAN 7.1). 나머지는 자리값이다. 표에서 양쪽이 서로를 적어야 부딪힌다.
- * 꼬리는 결투 상대의 몸도 지나간다. 부딪히면 막힌 꼬리를 모터가 계속 밀어 그 반작용으로 몸이 80도까지 기운다.
- * 꼬리로 상대를 치는 판정은 겹침으로 본다(sim/strike.ts).
+ * 꼬리는 결투 상대의 몸도 지나가고, 꼬리로 상대를 치는 판정은 겹침으로 본다(sim/strike.ts).
+ * 부딪히게 두면 막힌 꼬리가 상대에 겹치지 않아 판정이 빗나가고, 막힌 채 미는 모터 때문에 몸이 36도까지 기운다.
  */
 const COLLIDES_WITH: Record<GroupName, number> = {
   Terrain: Group.Body | Group.Tail | Group.Prop | Group.Enemy | Group.Held | Group.Fallen,

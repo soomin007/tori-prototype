@@ -389,8 +389,8 @@ export const DEFAULTS: GameConfig = {
     regenPerSecond: 0, // 1초에 저절로 차는 체력. 비교용으로만 둔다(PLAN 7.6)
     startSeconds: 1, // 벽이 닫힌 뒤 상대가 움직이기 시작할 때까지
     wallHeight: 4, // 결투장 벽의 높이. 뛰어도 넘지 못한다
-    damagePerSpeed: 1.6, // 꼬리 타격 피해 = 마디 속도(m/s) × 이 값. 능력표의 whipPower를 곱한다(PLAN 7.6)
-    maxDamage: 18, // 꼬리 타격 한 번의 피해 상한
+    damagePerSpeed: 2, // 꼬리 타격 피해 = 마디 속도(m/s) × 이 값. 능력표의 whipPower를 곱한다(PLAN 7.6)
+    maxDamage: 12, // 꼬리 타격 한 번의 피해 상한. 초속 6m부터 상한이다. B 방식은 11m/s 넘게, A 방식은 4~7m/s로 맞아서 상한이 높으면 B가 두 배 가까이 세다
     strikePush: 0.35, // 맞은 상대가 밀려나는 속도 = 마디 속도 × 이 값 × 상대의 넉백 배율
     maxPush: 5, // m/s
     strikeCooldownSeconds: 0.3, // 같은 상대를 다시 때릴 때까지. 한 번 휘두를 때 여러 마디가 닿아도 한 번만 친다
