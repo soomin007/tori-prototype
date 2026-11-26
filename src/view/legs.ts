@@ -21,6 +21,8 @@ export interface LegInput {
   /** 방향 전환의 진행(-1~1). 다리 붙는 자리가 이 값을 따라 반대쪽으로 넘어간다. */
   turn: number;
   grounded: boolean;
+  /** 결투에서 쓰러져 있는지. 다리를 배 쪽으로 뻗고 허공을 젓는다. */
+  downed?: boolean;
   groundBelow(x: number, y: number, maxDistance: number): number | null;
 }
 
@@ -154,6 +156,10 @@ export class LegRig {
     const before = leg.base;
     const beforeMode = leg.mode;
 
+    if (input.downed) {
+      this.flail(leg, config, reach, input.pose, beforeMode);
+      return;
+    }
     if (!input.grounded) {
       this.hang(leg, config, reach, beforeMode);
       return;
@@ -231,6 +237,20 @@ export class LegRig {
       x: leg.hip.x + sway * legs.restSpread,
       y: leg.hip.y + reach * (AIR_STRETCH - sway * AIR_STRETCH_SWAY),
     };
+    if (beforeMode !== 'air' && this.started) {
+      leg.blend = { x: leg.blend.x + before.x - leg.base.x, y: leg.blend.y + before.y - leg.base.y };
+    }
+  }
+
+  /** 쓰러져 있을 때. 공중에서처럼 다리를 젓되, 몸통 기준으로 배 쪽으로 뻗는다. 몸이 뒤집히면 다리가 위를 향한다. */
+  private flail(leg: State, { legs }: GameConfig, reach: number, pose: Pose, beforeMode: Mode): void {
+    const before = leg.base;
+    const sway = Math.cos(2 * Math.PI * this.phaseOf(leg));
+    const local = { x: sway * legs.restSpread * 2, y: reach * (AIR_STRETCH - sway * AIR_STRETCH_SWAY) };
+    const [cos, sin] = [Math.cos(pose.angle), Math.sin(pose.angle)];
+    leg.mode = 'air';
+    leg.progress = 0;
+    leg.base = { x: leg.hip.x + local.x * cos - local.y * sin, y: leg.hip.y + local.x * sin + local.y * cos };
     if (beforeMode !== 'air' && this.started) {
       leg.blend = { x: leg.blend.x + before.x - leg.base.x, y: leg.blend.y + before.y - leg.base.y };
     }

@@ -82,7 +82,8 @@ export class ToriView {
       pose,
       velocityX: tori.torso.linvel().x,
       turn: tori.turn,
-      grounded: tori.grounded,
+      grounded: tori.grounded && !tori.downed,
+      downed: tori.downed,
       groundBelow: (x, y, maxDistance) => this.sim.groundBelow(x, y, maxDistance),
     });
     for (const { leg, upper, lower } of this.legs) {
