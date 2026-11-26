@@ -6,8 +6,12 @@ const LINE_WIDTH = 2;
 const PROBE_HIT_COLOR = 0xffd24a;
 const PROBE_MISS_COLOR = 0x8b97a5;
 const TARGET_POSE_COLOR = 0xff6b9d;
+const HIT_BOX_COLOR = 0xff3b3b;
 
-/** Rapier가 주는 콜라이더와 관절 선, 바닥을 찾는 레이캐스트, 꼬리의 목표 자세를 그린다. 보간하지 않은 현재 스텝의 실제 위치다. */
+/**
+ * Rapier가 주는 콜라이더와 관절 선, 바닥을 찾는 레이캐스트, 꼬리의 목표 자세, 결투 상대의 공격 판정 범위를 그린다.
+ * 보간하지 않은 현재 스텝의 실제 위치다.
+ */
 export class DebugDraw {
   private readonly graphics: Phaser.GameObjects.Graphics;
 
@@ -23,7 +27,7 @@ export class DebugDraw {
     this.graphics.setVisible(!this.graphics.visible);
   }
 
-  draw({ world, tori }: Simulation): void {
+  draw({ world, tori, duels }: Simulation): void {
     if (!this.graphics.visible) return;
     this.graphics.clear();
     const { vertices, colors } = world.debugRender();
@@ -39,6 +43,12 @@ export class DebugDraw {
       this.graphics.lineBetween(toPx(from.x), toPx(from.y), toPx(to.x), toPx(to.y));
     }
     this.drawTargetPose(tori);
+    for (const { opponent } of duels) {
+      const box = opponent.hitBox;
+      if (!box) continue;
+      this.graphics.lineStyle(LINE_WIDTH, HIT_BOX_COLOR, 1);
+      this.graphics.strokeRect(toPx(box.left), toPx(box.top), toPx(box.right - box.left), toPx(box.bottom - box.top));
+    }
   }
 
   private drawTargetPose({ tail, torso, turn }: Simulation['tori']): void {

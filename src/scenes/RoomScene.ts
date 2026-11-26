@@ -6,6 +6,7 @@ import { Hud } from '../ui/hud';
 import { TuningPanel } from '../ui/tuningPanel';
 import { FollowCamera } from '../view/camera';
 import { DebugDraw } from '../view/debugDraw';
+import { DuelView } from '../view/duelView';
 import { InputReader } from '../view/inputReader';
 import type { SystemCommands } from '../view/inputReader';
 import { RoomView } from '../view/roomView';
@@ -17,6 +18,9 @@ const MAX_VIEW_SECONDS = 0.1;
 /** 회귀 연출의 자리표시(PLAN 7.4): 꼬리가 끊길 때 화면이 흔들리고, 돌아올 때 하얗게 깜빡인다(ms, 세기) */
 const CUT_SHAKE = { ms: 150, intensity: 0.004 };
 const REWIND_FLASH_MS = 600;
+/** 결투 연출의 자리표시: 토리가 맞으면 짧게, 쓰러지면 길게 흔들린다(ms, 세기) */
+const HURT_SHAKE = { ms: 120, intensity: 0.006 };
+const DOWN_SHAKE = { ms: 300, intensity: 0.01 };
 
 /** 시뮬레이션을 프레임마다 진행하고 그린다. 게임 규칙은 sim/에 두고 여기에는 넣지 않는다. */
 export class RoomScene extends Phaser.Scene {
@@ -29,6 +33,7 @@ export class RoomScene extends Phaser.Scene {
   private follow!: FollowCamera;
   private roomView?: RoomView;
   private toriView?: ToriView;
+  private duelView?: DuelView;
   private overlay?: TailOverlay;
   private drawnGeneration = -1;
   private paused = false;
@@ -102,8 +107,10 @@ export class RoomScene extends Phaser.Scene {
     }
     if (this.drawnGeneration !== this.sim.generation) this.rebuildViews();
     this.hud.showDialogue(this.sim.dialogue);
+    this.showDuel();
     const { tori } = this.sim;
     this.roomView?.update();
+    this.duelView?.update(this.paused ? 0 : dt);
     this.toriView?.update(this.paused ? 0 : dt);
     this.overlay?.update(this.usesRelativeCursor());
     this.follow.update(dt, this.sim.poseOf(tori.torso), tori.facing, this.session.config);
@@ -116,8 +123,24 @@ export class RoomScene extends Phaser.Scene {
     const camera = this.cameras.main;
     for (const event of this.sim.drainEvents()) {
       if (event === 'cut') camera.shake(CUT_SHAKE.ms, CUT_SHAKE.intensity);
-      else camera.flash(REWIND_FLASH_MS, 255, 255, 255);
+      else if (event === 'rewind') camera.flash(REWIND_FLASH_MS, 255, 255, 255);
+      else if (event === 'tori-hurt') camera.shake(HURT_SHAKE.ms, HURT_SHAKE.intensity);
+      else if (event === 'down') camera.shake(DOWN_SHAKE.ms, DOWN_SHAKE.intensity);
     }
+  }
+
+  /** 결투 중에는 전광판을, 쓰러져 있으면 심판 카운트를, 탈락하면 배드엔딩 화면을 띄운다 */
+  private showDuel(): void {
+    const { duel, eliminated } = this.sim;
+    const board = duel?.active
+      ? {
+          numbers: duel.data.numbers,
+          health: [duel.toriHealth / duel.toriMaxHealth, duel.opponent.health / duel.opponent.maxHealth] as const,
+        }
+      : null;
+    this.hud.showScoreboard(board);
+    this.hud.showCount(duel?.count ?? null);
+    this.hud.showEnding(eliminated);
   }
 
   private setPaused(paused: boolean): void {
@@ -151,9 +174,11 @@ export class RoomScene extends Phaser.Scene {
 
   private rebuildViews(): void {
     this.roomView?.destroy();
+    this.duelView?.destroy();
     this.toriView?.destroy();
     this.overlay?.destroy();
     this.roomView = new RoomView(this, this.sim);
+    this.duelView = new DuelView(this, this.sim);
     this.toriView = new ToriView(this, this.sim, this.session.config);
     this.overlay = new TailOverlay(this, this.sim);
     this.follow.enterRoom(this.sim.roomData);
@@ -172,6 +197,7 @@ export class RoomScene extends Phaser.Scene {
     this.hud.destroy();
     this.sim.free();
     this.roomView = undefined;
+    this.duelView = undefined;
     this.toriView = undefined;
     this.overlay = undefined;
   }
