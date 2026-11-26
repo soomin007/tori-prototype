@@ -1,3 +1,4 @@
+import { DEMO, surveyLink } from '../config/demo';
 import type { Scheme } from '../config/presets';
 import type { Dialogue } from '../sim/recorder';
 import type { SystemCommands } from '../view/inputReader';
@@ -41,6 +42,7 @@ export class Hud {
   private readonly boardFills = [element('div', 'score-fill'), element('div', 'score-fill')] as const;
   private readonly count = element('div', 'referee-count');
   private readonly ending = element('div', 'bad-ending');
+  private readonly demoEnd = element('div', 'bad-ending demo-end');
   private shownDialogue: Dialogue | null = null;
   private shownBoard = '';
   private shownCount: number | null = null;
@@ -104,6 +106,7 @@ export class Hud {
     this.count.setAttribute('aria-live', 'assertive');
     this.ending.append(element('p', '', BAD_ENDING_TEXT), makeButton('처음부터', 'hud-button', () => commands.restartRoom()));
     this.ending.hidden = true;
+    this.buildDemoEnd(commands);
 
     root.replaceChildren(
       bar,
@@ -112,6 +115,7 @@ export class Hud {
       this.help,
       this.dialogue,
       this.ending,
+      this.demoEnd,
       this.pausePanel,
       this.toast,
       this.copyBox,
@@ -148,6 +152,33 @@ export class Hud {
   showEnding(shown: boolean): void {
     if (this.ending.hidden !== shown) return;
     this.ending.hidden = !shown;
+  }
+
+  /** 체험판의 마지막 결투를 이겼을 때의 "체험판 끝" 화면(PLAN 7.9) */
+  showDemoEnd(shown: boolean): void {
+    if (this.demoEnd.hidden !== shown) return;
+    this.demoEnd.hidden = !shown;
+  }
+
+  /**
+   * "체험판 끝" 화면. 설문 주소(config/demo.ts)가 있으면 설문 단추를 둔다. 설문은 새 탭에서 열리므로 단추에 바깥 화살표를 달고,
+   * 누르기 전에 열릴 주소를 단추 밑에 보여 준다(PLAN 7.9).
+   */
+  private buildDemoEnd(commands: SystemCommands): void {
+    this.demoEnd.append(element('p', '', '체험판 끝'));
+    const survey = surveyLink(DEMO.surveyUrl);
+    if (survey) {
+      const link = element('a', 'hud-button survey-link');
+      link.href = survey.href;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.title = survey.href;
+      link.setAttribute('aria-label', '설문 열기, 새 탭');
+      link.append('설문 열기', element('span', 'external', '↗'));
+      this.demoEnd.append(link, element('p', 'survey-url', survey.shown));
+    }
+    this.demoEnd.append(makeButton('첫 화면으로', 'hud-button', () => commands.toStart()));
+    this.demoEnd.hidden = true;
   }
 
   /** 기록관의 대사를 띄우거나 닫는다. 프레임마다 불러도 바뀔 때만 고친다. */

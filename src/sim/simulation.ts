@@ -9,7 +9,7 @@ import { groundProbeGroups } from '../physics/groups';
 import { FixedStepper, PhysicsWorld } from '../physics/world';
 import type { Pose } from '../physics/world';
 import { roomByNumber } from '../rooms/rooms';
-import type { Point, RoomData } from '../rooms/rooms';
+import type { NpcData, Point, RoomData } from '../rooms/rooms';
 import { restoreCheckpoint, takeCheckpoint } from '../state/checkpoints';
 import type { Checkpoint } from '../state/checkpoints';
 import { createGameState } from '../state/gameState';
@@ -105,6 +105,16 @@ export class Simulation {
   /** 대본 사건(PLAN 7.8). 저마다 딸린 결투가 진행한다. */
   get scripted(): readonly ScriptedEvent[] {
     return this.room.events;
+  }
+
+  /** 친구 NPC 자리 */
+  get npcs(): readonly NpcData[] {
+    return this.room.npcs;
+  }
+
+  /** "체험판 끝" 화면을 띄울지. 이 방에서 endsDemo인 결투를 이겼으면 참이다(PLAN 7.9). */
+  get demoOver(): boolean {
+    return this.roomData.duels.some(({ id, endsDemo }) => endsDemo && this.state.duelsWon.includes(id));
   }
 
   /** 지금 화면에 보여 줄 결투. 결투 밖이거나 이긴 뒤면 없다. */
@@ -216,6 +226,7 @@ export class Simulation {
     this.holdCutKey(input);
     this.handleTalk(input);
     this.stepDuels(input);
+    this.room.releaseHanging(this.tori.torso.translation().x);
     const live = this.liveInput(input);
     const { tori, config } = this;
     const command = this.controller.update(live, { tori, config, grabbables: this.room.grabbables });

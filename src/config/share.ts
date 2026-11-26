@@ -17,7 +17,8 @@ export interface Session {
 }
 
 export const ROOM_COUNT = 4;
-export const DEFAULT_ROOM = 1;
+/** 주소에 방이 없으면 여는 방. 12월 2일 체험판의 첫 방(방 4, 등록장 길)이다. */
+export const DEFAULT_ROOM = 4;
 
 /** 조작 방식의 기본값과 다른 항목만 모은다 */
 export function diffConfig(config: GameConfig, scheme: Scheme): Record<string, ParamValue> {

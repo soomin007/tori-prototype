@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import { toPx } from '../physics/world';
-import type { DoorData, RecorderData, RoomData, Surface } from '../rooms/rooms';
+import type { BoxData, DecorData, DoorData, NpcData, RecorderData, RoomData, Surface } from '../rooms/rooms';
 import type { Simulation } from '../sim/simulation';
 
 /** 도형 색(자리값) */
@@ -8,6 +8,11 @@ const SURFACE_COLORS: Record<Surface, number> = { normal: 0x3b4652, slippery: 0x
 const BOX_COLORS = [0xb98a5a, 0xa87c50, 0xc79a6b];
 /** 꼬리로 들 수 있는 물건 */
 const GRABBABLE_COLOR = 0xf2c14e;
+/** 그림이 정해진 물건(BoxData.look) */
+const LOOK_COLORS: Record<NonNullable<BoxData['look']>, number> = { fruit: 0xd8604a, junk: 0x7f8c99 };
+/** 친구 NPC 자리와 나무 */
+const NPC_COLORS = { body: 0x6fa587, head: 0x8cc0a2, eye: 0x20262d };
+const TREE_COLORS = { trunk: 0x6b5240, leaves: 0x3f6b4a };
 const BRANCH_COLOR = 0x9a6b42;
 const RECORDER_COLORS = { body: 0x8f86c9, head: 0xa9a1dc, eye: 0x20262d };
 const DOOR_COLORS = { panel: 0x6b5240, frame: 0x45352a };
@@ -23,13 +28,13 @@ const GRID_COLOR = 0x8b97a5;
 const GRID_ALPHA = { minor: 0.08, major: 0.2 };
 const GRID_MAJOR_EVERY = 5;
 
-const DEPTH = { grid: -20, terrain: -10, recorder: -8, door: -6, branch: -5, box: 5, bubble: 45 };
+const DEPTH = { grid: -20, decor: -15, terrain: -10, recorder: -8, door: -6, branch: -5, box: 5, bubble: 45 };
 
 /** 지형, 물건, 기록관과 문을 그린다. 방을 다시 만들면 새로 만든다. */
 export class RoomView {
   private readonly sim: Simulation;
   private readonly still: Phaser.GameObjects.Graphics[];
-  private readonly boxes: Phaser.GameObjects.Rectangle[];
+  private readonly boxes: (Phaser.GameObjects.Rectangle | Phaser.GameObjects.Ellipse)[];
   /** 기록관마다의 문. 문이 없는 기록관은 null이다. */
   private readonly doors: (Phaser.GameObjects.Graphics | null)[];
   private readonly bubble: Phaser.GameObjects.Graphics;
@@ -42,10 +47,17 @@ export class RoomView {
       drawTerrain(scene, roomData),
       drawBranches(scene, roomData),
       drawRecorders(scene, sim.recorders.map(({ data }) => data)),
+      drawNpcs(scene, sim.npcs),
+      drawDecor(scene, roomData.decor),
     ];
     this.boxes = sim.objects.map(({ width, height, data }, i) => {
-      const color = data.grabbable ? GRABBABLE_COLOR : BOX_COLORS[i % BOX_COLORS.length];
-      return scene.add.rectangle(0, 0, toPx(width), toPx(height), color).setDepth(DEPTH.box);
+      const color = data.look ? LOOK_COLORS[data.look] : data.grabbable ? GRABBABLE_COLOR : BOX_COLORS[i % BOX_COLORS.length];
+      const shape =
+        data.look === 'fruit'
+          ? scene.add.ellipse(0, 0, toPx(width), toPx(height), color)
+          : scene.add.rectangle(0, 0, toPx(width), toPx(height), color);
+      if (data.look === 'junk') shape.setStrokeStyle(3, 0x4f5a66);
+      return shape.setDepth(DEPTH.box);
     });
     this.doors = sim.recorders.map(({ data }) => (data.door ? drawDoor(scene, data.door) : null));
     this.bubble = scene.add.graphics().setDepth(DEPTH.bubble);
@@ -113,6 +125,31 @@ function drawRecorders(scene: Phaser.Scene, recorders: readonly RecorderData[]):
     const headY = y - height - head * 0.8;
     g.fillStyle(RECORDER_COLORS.head).fillCircle(toPx(x), toPx(headY), toPx(head));
     g.fillStyle(RECORDER_COLORS.eye).fillCircle(toPx(x - head * 0.45), toPx(headY - head * 0.1), toPx(head * 0.14));
+  }
+  return g;
+}
+
+/** 친구 NPC 자리. 기록관과 같은 모양에 색만 다른 자리표시다. 토리가 오는 쪽(왼쪽)을 본다. */
+function drawNpcs(scene: Phaser.Scene, npcs: readonly NpcData[]): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics().setDepth(DEPTH.recorder);
+  const { width, height, head } = RECORDER_SIZE;
+  for (const { x, y } of npcs) {
+    const [w, h] = [width * 0.85, height * 0.8];
+    g.fillStyle(NPC_COLORS.body).fillRoundedRect(toPx(x - w / 2), toPx(y - h), toPx(w), toPx(h), toPx(w) / 3);
+    const headY = y - h - head * 0.8;
+    g.fillStyle(NPC_COLORS.head).fillCircle(toPx(x), toPx(headY), toPx(head));
+    g.fillStyle(NPC_COLORS.eye).fillCircle(toPx(x - head * 0.45), toPx(headY - head * 0.1), toPx(head * 0.14));
+  }
+  return g;
+}
+
+/** 부딪히지 않는 나무. 줄기와 둥근 잎이다. */
+function drawDecor(scene: Phaser.Scene, decor: readonly DecorData[]): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics().setDepth(DEPTH.decor);
+  for (const { x, y, height, radius } of decor) {
+    const trunk = radius * 0.25;
+    g.fillStyle(TREE_COLORS.trunk).fillRect(toPx(x - trunk / 2), toPx(y - height), toPx(trunk), toPx(height));
+    g.fillStyle(TREE_COLORS.leaves).fillCircle(toPx(x), toPx(y - height), toPx(radius));
   }
   return g;
 }

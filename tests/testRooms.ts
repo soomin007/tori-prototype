@@ -26,5 +26,5 @@ export function room(
   events: ScriptedEventData[] = [],
 ): RoomData {
   const bounds = { left: 0, top: -10, right: 100, bottom: 2 };
-  return { number: 0, bounds, spawn: { x: 2, y: -0.5 }, terrain, boxes, branches, recorders, duels, events };
+  return { number: 0, bounds, spawn: { x: 2, y: -0.5 }, terrain, boxes, branches, recorders, duels, events, npcs: [], decor: [] };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { cloneConfig, DEFAULTS, getParam, PARAM_META, paramPaths } from '../src/config/defaults';
-import { buildShareUrl, parseShare } from '../src/config/share';
+import { buildShareUrl, DEFAULT_ROOM, parseShare } from '../src/config/share';
 import { systemKeys } from '../src/ui/controlsGuide';
 
 const PAGE = 'https://example.test/tori/?scheme=B&cfg=old#top';
@@ -50,7 +50,7 @@ describe('공유 링크', () => {
     for (const broken of ['?cfg=%%%', '?cfg=abc', cfg(null), cfg([1]), cfg(7)]) {
       expect(parseShare(broken).config).toEqual(DEFAULTS);
     }
-    expect(parseShare('?scheme=Z&room=9')).toMatchObject({ scheme: 'A', room: 1 });
+    expect(parseShare('?scheme=Z&room=9')).toMatchObject({ scheme: 'A', room: DEFAULT_ROOM });
   });
 
   it('디버그 키는 주소의 debug가 정하고, 없으면 빌드마다의 기본값을 쓴다(PLAN 7.10)', () => {

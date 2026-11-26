@@ -43,6 +43,37 @@ export interface BoxData extends Appearance {
   angle: number;
   /** 꼬리 끝으로 들 수 있는지 */
   grabbable: boolean;
+  /** 밀도(kg/m²). 없으면 설정의 props.density를 쓴다. */
+  density?: number;
+  /** 그림. 없으면 상자다. 모양만 바뀌고 물리는 같다. */
+  look?: 'fruit' | 'junk';
+  /**
+   * 매달려 있다가 떨어지는 물건(열매). 토리의 몸통 중심이 untilX를 넘고 delaySeconds가 지나면 떨어진다.
+   * 그 전에는 움직이지 않는다.
+   */
+  hang?: { untilX: number; delaySeconds: number };
+}
+
+/**
+ * 친구 NPC가 서는 자리(PLAN 2.6). 지금은 말을 걸 수 없는 자리표시 그림이다.
+ * 회귀할수록 사라지는 것은 Appearance의 회귀 횟수 범위로 적는다. 누가 언제 사라지는지는 기획이 정한다.
+ */
+export interface NpcData extends Appearance {
+  id: string;
+  /** 발밑 가운데 */
+  x: number;
+  y: number;
+}
+
+/** 부딪히지 않는 그림(자리표시). 길에 놓인 나무의 모양만 보여 준다. (x, y)는 밑동이다. */
+export interface DecorData {
+  kind: 'tree';
+  x: number;
+  y: number;
+  /** 밑동에서 잎 가운데까지 */
+  height: number;
+  /** 잎의 반지름 */
+  radius: number;
 }
 
 /** 말을 걸기 전까지 앞길을 막는 문. 아랫변 가운데가 (x, y)다. */
@@ -150,6 +181,8 @@ export interface RoomData {
   recorders: readonly RecorderData[];
   duels: readonly DuelData[];
   events: readonly ScriptedEventData[];
+  npcs: readonly NpcData[];
+  decor: readonly DecorData[];
 }
 
 /** 바닥 윗면의 y. 아래 도우미는 이 높이에서 위로 잰 값(h)을 받는다. */
@@ -216,6 +249,8 @@ const MOVE_ROOM: RoomData = {
   recorders: [],
   duels: [],
   events: [],
+  npcs: [],
+  decor: [],
 };
 
 /** 바닥이나 다른 상자 위에 놓인 상자. h는 아랫면의 높이다. */
@@ -268,6 +303,8 @@ const TAIL_ROOM: RoomData = {
   recorders: [],
   duels: [],
   events: [],
+  npcs: [],
+  decor: [],
 };
 
 /**
@@ -316,10 +353,65 @@ const DUEL_ROOM: RoomData = {
   // 결투 1(x 19~32). 상대와 토리는 번호로만 부른다
   duels: [arena('duel-1', 19, 32, ['번호 1', '번호 2'])],
   events: [],
+  npcs: [],
+  decor: [],
 };
 
-/** 방 번호 - 1이 자리다. 방 4는 아직 없다. */
-export const ROOMS: readonly RoomData[] = [MOVE_ROOM, TAIL_ROOM, DUEL_ROOM];
+/** 나무에 매달린 열매. 토리가 untilX를 넘고 delaySeconds 뒤에 떨어진다. h는 아랫면의 높이다. */
+function fruit(x: number, h: number, untilX: number, delaySeconds: number): BoxData {
+  return { ...box(x, 0.2, 0.2, h), look: 'fruit', hang: { untilX, delaySeconds } };
+}
+
+function npc(id: string, x: number, appearance: Appearance = {}): NpcData {
+  return { id, ...at(x, 0), ...appearance };
+}
+
+function tree(x: number, height: number, radius: number): DecorData {
+  return { kind: 'tree', ...at(x, 0), height, radius };
+}
+
+/** 등록장 길의 턱 높이. 뛰어서는 오르지 못하고(몸통 아랫면이 약 1.63m까지 뜬다), 폐품을 디디면 오른다. */
+const LEDGE_H = 1.8;
+/** 폐품 한 변. 디디고 뛰면 몸통 아랫면이 약 2.3m까지 뜬다. */
+const JUNK_SIZE = 0.7;
+
+/**
+ * 방 4: 기 구간의 앞부분인 등록장 길(12월 2일 체험판, PLAN 9절과 10절의 2단계). 왼쪽부터 친구 NPC 자리, 열매가 떨어지는 나무,
+ * 폐품과 높은 턱, 친구 NPC 자리, 기록관과 문, 결투 1의 결투장 순서다. 글로 가르치지 않고 배치로 해 보게 한다(PLAN 2.5).
+ * 열매는 다가가면 머리 위로 떨어져 꼬리로 쳐 보게 하고, 폐품은 꼬리로 끌거나 몸으로 밀어 턱 앞에 놓고 디디게 한다.
+ * 결투 도중 위쪽 인물이 구조물을 떨어뜨린다(대본 사건, PLAN 7.8). 결투 1을 이기면 "체험판 끝" 화면이다(PLAN 7.9).
+ * 두 번째 친구 NPC는 기록관 가까이에 두어, 회귀한 뒤 사라진 것이 보이는 자리에 있다. 배치와 치수는 모두 자리값이다.
+ */
+const GI_ROOM: RoomData = {
+  number: 4,
+  bounds: { left: -0.5, top: -3, right: 44.5, bottom: FLOOR_BOTTOM_Y },
+  spawn: at(2, 0.5),
+  terrain: [wall(-1.5, 0), ground(0, 16.5), ground(16.5, 20.5, LEDGE_H), ground(20.5, 43), wall(43, 44.5)],
+  boxes: [
+    fruit(8.3, 2.5, 6.8, 0),
+    fruit(9.1, 2.7, 6.8, 0.45),
+    fruit(9.9, 2.45, 6.8, 0.9),
+    { ...box(13.4, JUNK_SIZE, JUNK_SIZE, 0, true), look: 'junk', density: 1.5 },
+  ],
+  branches: [],
+  recorders: [recorder('gi-1', 24.5, 25.7)],
+  duels: [{ ...arena('gi-duel-1', 27.5, 41.5, ['번호 1', '번호 2']), endsDemo: true }],
+  events: [
+    {
+      id: 'gi-drop-1',
+      duel: 'gi-duel-1',
+      // 싸움을 시작하고 8초 뒤나, 토리의 체력이 절반 밑으로 내려가면 온다
+      trigger: { fightSeconds: 8, toriHealthBelow: 0.5 },
+      drop: { ...at(34.5, 3.7), width: 1.4, height: 0.4 },
+      ledge: { left: 27.5, right: 41.5, y: at(0, 4.6).y },
+    },
+  ],
+  npcs: [npc('gi-friend-1', 4.4), npc('gi-friend-2', 21.9)],
+  decor: [tree(9.1, 3.2, 1.3)],
+};
+
+/** 방 번호 - 1이 자리다. 방 4가 체험판의 첫 방이다(config/share.ts의 DEFAULT_ROOM). */
+export const ROOMS: readonly RoomData[] = [MOVE_ROOM, TAIL_ROOM, DUEL_ROOM, GI_ROOM];
 
 export function hasRoom(room: number): boolean {
   return ROOMS[room - 1] !== undefined;
