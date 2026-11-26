@@ -23,6 +23,8 @@ export interface LegInput {
   grounded: boolean;
   /** 결투에서 쓰러져 있는지. 다리를 배 쪽으로 뻗고 허공을 젓는다. */
   downed?: boolean;
+  /** 대본 사건의 구조물에 깔려 있는지. 엎드린 채 다리를 옆으로 뻗어 바닥을 긁는다. */
+  pinned?: boolean;
   groundBelow(x: number, y: number, maxDistance: number): number | null;
 }
 
@@ -50,6 +52,9 @@ const BLEND_SECONDS = 0.04;
 /** 공중에서 다리를 편 정도와, 앞뒤 짝이 서로 다르게 펴는 정도 */
 const AIR_STRETCH = 0.75;
 const AIR_STRETCH_SWAY = 0.08;
+/** 깔렸을 때 다리를 옆으로 뻗는 정도와 바닥 쪽으로 내리는 정도(다리 길이에 대한 비율) */
+const PINNED_SPREAD = 0.7;
+const PINNED_DROP = 0.3;
 /** 다리를 다 폈을 때 무릎이 튀지 않게 남기는 여유 */
 const MAX_STRETCH = 0.995;
 /** 착지할 때 한 짝은 이미 디뎠고 다른 짝은 발을 이만큼 옮긴 것으로 시작한다 */
@@ -157,7 +162,7 @@ export class LegRig {
     const beforeMode = leg.mode;
 
     if (input.downed) {
-      this.flail(leg, config, reach, input.pose, beforeMode);
+      this.flail(leg, config, reach, input, beforeMode);
       return;
     }
     if (!input.grounded) {
@@ -242,11 +247,17 @@ export class LegRig {
     }
   }
 
-  /** 쓰러져 있을 때. 공중에서처럼 다리를 젓되, 몸통 기준으로 배 쪽으로 뻗는다. 몸이 뒤집히면 다리가 위를 향한다. */
-  private flail(leg: State, { legs }: GameConfig, reach: number, pose: Pose, beforeMode: Mode): void {
+  /**
+   * 쓰러져 있을 때. 공중에서처럼 다리를 젓되, 몸통 기준으로 배 쪽으로 뻗는다. 몸이 뒤집히면 다리가 위를 향한다.
+   * 깔려서 엎드려 있을 때는 배 밑이 바닥이라, 앞다리는 앞으로 뒷다리는 뒤로 낮게 뻗어 바닥을 긁는다.
+   */
+  private flail(leg: State, { legs }: GameConfig, reach: number, { pose, pinned, turn }: LegInput, beforeMode: Mode): void {
     const before = leg.base;
     const sway = Math.cos(2 * Math.PI * this.phaseOf(leg));
-    const local = { x: sway * legs.restSpread * 2, y: reach * (AIR_STRETCH - sway * AIR_STRETCH_SWAY) };
+    const outward = (leg.front ? 1 : -1) * (turn >= 0 ? 1 : -1);
+    const local = pinned
+      ? { x: outward * reach * PINNED_SPREAD + sway * legs.restSpread * 2, y: reach * PINNED_DROP }
+      : { x: sway * legs.restSpread * 2, y: reach * (AIR_STRETCH - sway * AIR_STRETCH_SWAY) };
     const [cos, sin] = [Math.cos(pose.angle), Math.sin(pose.angle)];
     leg.mode = 'air';
     leg.progress = 0;

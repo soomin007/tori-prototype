@@ -84,6 +84,7 @@ export class ToriView {
       turn: tori.turn,
       grounded: tori.grounded && !tori.downed,
       downed: tori.downed,
+      pinned: tori.pinned,
       groundBelow: (x, y, maxDistance) => this.sim.groundBelow(x, y, maxDistance),
     });
     for (const { leg, upper, lower } of this.legs) {
