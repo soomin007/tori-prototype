@@ -15,6 +15,11 @@ export interface InputState {
   pointerActive: boolean;
   /** 포인터를 잠근 동안 마우스가 움직인 거리(미터). 물리 스텝이 한 번 돌면 지워진다. */
   pointerDelta: { x: number; y: number };
+  /**
+   * 마우스가 움직인 거리(미터, 화면 기준). 포인터 잠금과 상관없이 쌓이고 물리 스텝이 한 번 돌면 지워진다.
+   * 카메라가 움직여도 바뀌지 않아서, 마우스를 흔드는 버둥거림이 이것을 본다.
+   */
+  mouseMotion: { x: number; y: number };
 }
 
 /** pointerGrab은 A 방식, grab과 attack은 B 방식이 쓴다 */
@@ -34,6 +39,7 @@ export function createInputState(): InputState {
     pointer: { x: 0, y: 0 },
     pointerActive: false,
     pointerDelta: { x: 0, y: 0 },
+    mouseMotion: { x: 0, y: 0 },
   };
 }
 
@@ -42,4 +48,6 @@ export function clearMomentary(input: InputState): void {
   for (const action of ACTIONS) input.pressed[action] = false;
   input.pointerDelta.x = 0;
   input.pointerDelta.y = 0;
+  input.mouseMotion.x = 0;
+  input.mouseMotion.y = 0;
 }

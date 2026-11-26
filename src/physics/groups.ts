@@ -11,20 +11,27 @@ export const Group = {
   Held: 1 << 6,
   /** 꼬리로 거는 가지. 아무것과도 부딪히지 않는다. */
   Branch: 1 << 7,
+  /** 쓰러진 결투 상대. 바닥에만 닿아, 토리가 넘어 지나갈 수 있다. */
+  Fallen: 1 << 8,
 } as const;
 
 export type GroupName = keyof typeof Group;
 
-/** 꼬리는 자기 몸과 부딪히지 않는다(PLAN 7.1). 나머지는 자리값이다. 표에서 양쪽이 서로를 적어야 부딪힌다. */
+/**
+ * 꼬리는 자기 몸과 부딪히지 않는다(PLAN 7.1). 나머지는 자리값이다. 표에서 양쪽이 서로를 적어야 부딪힌다.
+ * 꼬리는 결투 상대의 몸도 지나간다. 부딪히면 막힌 꼬리를 모터가 계속 밀어 그 반작용으로 몸이 80도까지 기운다.
+ * 꼬리로 상대를 치는 판정은 겹침으로 본다(sim/strike.ts).
+ */
 const COLLIDES_WITH: Record<GroupName, number> = {
-  Terrain: Group.Body | Group.Tail | Group.Prop | Group.Enemy | Group.Held,
+  Terrain: Group.Body | Group.Tail | Group.Prop | Group.Enemy | Group.Held | Group.Fallen,
   Body: Group.Terrain | Group.Prop | Group.Enemy | Group.Sensor,
-  Tail: Group.Terrain | Group.Prop | Group.Enemy,
+  Tail: Group.Terrain | Group.Prop,
   Prop: Group.Terrain | Group.Body | Group.Tail | Group.Prop | Group.Enemy | Group.Held,
-  Enemy: Group.Terrain | Group.Body | Group.Tail | Group.Prop | Group.Enemy | Group.Held,
+  Enemy: Group.Terrain | Group.Body | Group.Prop | Group.Enemy | Group.Held,
   Sensor: Group.Body,
   Held: Group.Terrain | Group.Prop | Group.Enemy | Group.Held,
   Branch: 0,
+  Fallen: Group.Terrain,
 };
 
 /** Rapier의 InteractionGroups 값(위 16비트: 속한 그룹, 아래 16비트: 부딪힐 그룹) */

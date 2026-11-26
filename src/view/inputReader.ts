@@ -149,10 +149,13 @@ export class InputReader {
     this.client.x = event.clientX;
     this.client.y = event.clientY;
     this.state.pointerActive = true;
-    if (!this.locked) return;
     const scale = this.canvas.width / this.canvas.getBoundingClientRect().width;
-    this.state.pointerDelta.x += toMeters(event.movementX * scale);
-    this.state.pointerDelta.y += toMeters(event.movementY * scale);
+    const [dx, dy] = [toMeters(event.movementX * scale), toMeters(event.movementY * scale)];
+    this.state.mouseMotion.x += dx;
+    this.state.mouseMotion.y += dy;
+    if (!this.locked) return;
+    this.state.pointerDelta.x += dx;
+    this.state.pointerDelta.y += dy;
   }
 
   private onMouseDown(event: MouseEvent): void {

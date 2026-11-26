@@ -1,4 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat';
+import type { Abilities } from '../config/abilities';
 import type { GameConfig } from '../config/defaults';
 import { collisionGroups } from '../physics/groups';
 import type { PhysicsWorld } from '../physics/world';
@@ -6,6 +7,8 @@ import type { Grabbable } from '../tori/grab';
 import { appears } from '../rooms/rooms';
 import type { BoxData, BranchData, RoomData, Surface, TerrainData } from '../rooms/rooms';
 import type { GameState } from '../state/gameState';
+import { Duel } from './duel';
+import type { DuelEvent } from './duel';
 import { Recorder } from './recorder';
 
 /** 움직이는 물건. 크기는 미터다. */
@@ -26,11 +29,23 @@ export class Room {
   /** 꼬리 끝으로 잡을 수 있는 물건과 가지 */
   readonly grabbables: readonly Grabbable[];
   readonly recorders: readonly Recorder[];
+  /** 결투장. 이긴 결투는 만들지 않는다. */
+  readonly duels: readonly Duel[];
   private readonly terrain: readonly RAPIER.Collider[];
   private readonly surfaces = new Map<number, Surface>();
 
-  /** state의 회귀 횟수로 놓을 것을 거르고, 말을 건 기록관의 문은 열어 둔다 */
-  constructor(physics: PhysicsWorld, data: RoomData, config: GameConfig, state: GameState) {
+  /**
+   * state의 회귀 횟수로 놓을 것을 거르고, 말을 건 기록관의 문은 열어 둔다. 이긴 결투(state.duelsWon)는 만들지 않는다.
+   * abilities는 남은 구간의 능력표 줄이고 결투가 토리의 체력 상한과 넉백에 쓴다. emit은 결투가 알리는 일을 받는다.
+   */
+  constructor(
+    physics: PhysicsWorld,
+    data: RoomData,
+    config: GameConfig,
+    state: GameState,
+    abilities: Abilities,
+    emit: (event: DuelEvent) => void,
+  ) {
     this.data = data;
     const ground = physics.raw.createRigidBody(RAPIER.RigidBodyDesc.fixed());
     this.terrain = data.terrain.map((piece) => this.addTerrain(physics.raw, ground, piece));
@@ -42,6 +57,9 @@ export class Room {
     this.recorders = data.recorders
       .filter((recorder) => appears(recorder, state.rewinds))
       .map((recorder) => new Recorder(physics, recorder, state.talkedTo.includes(recorder.id)));
+    this.duels = data.duels
+      .filter((duel) => appears(duel, state.rewinds) && !state.duelsWon.includes(duel.id))
+      .map((duel) => new Duel(physics, duel, config, abilities, emit));
     this.applyMaterials(config);
   }
 

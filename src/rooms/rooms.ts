@@ -1,3 +1,5 @@
+import type { OpponentKind } from '../config/opponents';
+
 /**
  * 테스트 방 데이터. 길이는 미터이고 y는 아래로 커진다. 배치와 치수는 전부 자리값이다.
  * 이 파일은 데이터만 담는다. 바디와 콜라이더는 sim/roomBuilder.ts가 만든다.
@@ -78,6 +80,28 @@ export interface BranchData {
   thickness: number;
 }
 
+/**
+ * 결투장과 그 상대(PLAN 7.6). 토리의 몸통 중심이 startX를 넘어 들어서면 left와 right에 벽이 닫히고 결투가 시작된다.
+ * 벽은 결투가 끝나면 열린다. 이긴 결투는 상태의 duelsWon에 id로 적히고, 방을 다시 만들어도 다시 생기지 않는다.
+ */
+export interface DuelData extends Appearance {
+  /** 상태에 이 이름으로 적힌다. 방이 달라도 겹치면 안 된다. */
+  id: string;
+  /** 결투장 왼쪽 끝과 오른쪽 끝의 x. 벽의 가운데가 여기에 선다. */
+  left: number;
+  right: number;
+  /** 결투장 바닥 윗면의 y */
+  floorY: number;
+  /** 토리의 몸통 중심이 이 x를 넘으면 결투가 시작된다 */
+  startX: number;
+  /** 상대 종류(config/opponents.ts) */
+  opponent: OpponentKind;
+  /** 상대가 처음 서는 자리(발밑 가운데의 x). 토리 쪽(왼쪽)을 보고 선다. */
+  opponentX: number;
+  /** 전광판에 나오는 번호. 자리표시다. 앞이 토리, 뒤가 상대다. */
+  numbers: readonly [string, string];
+}
+
 export interface RoomData {
   /** 방 번호. 숫자 키와 주소의 ?room=, 상태의 room이 이 번호를 쓴다. 테스트용 방은 0이다. */
   number: number;
@@ -89,6 +113,7 @@ export interface RoomData {
   boxes: readonly BoxData[];
   branches: readonly BranchData[];
   recorders: readonly RecorderData[];
+  duels: readonly DuelData[];
 }
 
 /** 바닥 윗면의 y. 아래 도우미는 이 높이에서 위로 잰 값(h)을 받는다. */
@@ -153,6 +178,7 @@ const MOVE_ROOM: RoomData = {
   boxes: [],
   branches: [],
   recorders: [],
+  duels: [],
 };
 
 /** 바닥이나 다른 상자 위에 놓인 상자. h는 아랫면의 높이다. */
@@ -203,6 +229,7 @@ const TAIL_ROOM: RoomData = {
   ],
   branches: [branch(15.4, 2.7), branch(18.2, 2.8), branch(21.2, 2.9)],
   recorders: [],
+  duels: [],
 };
 
 /**
@@ -223,6 +250,13 @@ function recorder(id: string, x: number, gateX: number | null, line = '기록관
 }
 
 /**
+ * 결투장 하나. 시작하는 자리는 왼쪽 벽에서 3m 안쪽이다. 꼬리를 뒤로 뻗어도(약 1.9m) 닫히는 벽에 걸리지 않는다.
+ */
+function arena(id: string, left: number, right: number, numbers: readonly [string, string]): DuelData {
+  return { id, left, right, floorY: FLOOR_Y, startX: left + 3, opponent: 'opponent-1', opponentX: right - 3, numbers };
+}
+
+/**
  * 방 3: 결투 시험장(PLAN 9절). 왼쪽부터 기록관과 문, 짧은 길, 결투장 순서다.
  * 길에는 짧아진 꼬리로 해 볼 것(작은 물건, 상자, 낮은 가지)을 둔다. 가지는 밑동만 남은 꼬리로도 뛰어서 닿는 높이다.
  */
@@ -236,12 +270,13 @@ const DUEL_ROOM: RoomData = {
     // 가지 아래의 얕은 구덩이. 매달린 모습이 보이게 판다
     ground(13, 15.6, -0.5),
     ground(15.6, 33),
-    // 결투장(x 19~32). 결투 상대와 진행은 묶음 나에서 채운다
     wall(33, 34.5),
   ],
   boxes: [box(9, 0.18, 0.18, 0, true), box(11, 0.5)],
   branches: [branch(14.3, 2)],
   recorders: [recorder('duel-1', 5.5, 6.7)],
+  // 결투 1(x 19~32). 상대와 토리는 번호로만 부른다
+  duels: [arena('duel-1', 19, 32, ['번호 1', '번호 2'])],
 };
 
 /** 방 번호 - 1이 자리다. 방 4는 아직 없다. */

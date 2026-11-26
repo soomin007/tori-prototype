@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier2d-compat';
 import { abilitiesFor } from '../config/abilities';
+import type { Abilities } from '../config/abilities';
 import { FIXED_DT } from '../config/defaults';
 import type { GameConfig } from '../config/defaults';
 import { DEFAULT_SCHEME } from '../config/presets';
@@ -19,6 +20,7 @@ import type { TailController } from '../tori/controllers/aim';
 import { AutoTail } from '../tori/controllers/autoTail';
 import { MouseTail } from '../tori/controllers/mouseTail';
 import type { SeveredTail } from '../tori/tail';
+import type { Duel, DuelEvent } from './duel';
 import { clearMomentary, createInputState } from './inputState';
 import type { InputState } from './inputState';
 import type { Dialogue, Recorder } from './recorder';
@@ -27,7 +29,7 @@ import type { SimObject } from './roomBuilder';
 import { Strikes } from './strike';
 
 /** 그리기 쪽이 연출을 붙일 일. 체크포인트가 생긴 것은 화면에 알리지 않으므로 없다(PLAN 7.8). */
-export type SimEvent = 'cut' | 'rewind';
+export type SimEvent = 'cut' | 'rewind' | DuelEvent;
 
 /**
  * 월드, 방, 토리, 게임 상태를 묶어 한 스텝씩 진행한다. 화면 없이도 돈다.
@@ -47,6 +49,8 @@ export class Simulation {
   tori!: Tori;
   controller!: TailController;
   strikes!: Strikes;
+  /** 남은 구간의 능력표 줄(PLAN 7.5). 남은 구간이 바뀌면 방을 다시 만들므로 그때 다시 읽는다. */
+  abilities!: Abilities;
   /** 방을 다시 만들 때마다 1씩 커진다. 그리기 쪽은 이 값이 바뀌면 그림을 다시 만든다. */
   generation = 0;
   stepCount = 0;
@@ -91,6 +95,20 @@ export class Simulation {
 
   get recorders(): readonly Recorder[] {
     return this.room.recorders;
+  }
+
+  get duels(): readonly Duel[] {
+    return this.room.duels;
+  }
+
+  /** 지금 화면에 보여 줄 결투. 결투 밖이거나 이긴 뒤면 없다. */
+  get duel(): Duel | null {
+    return this.room.duels.find((duel) => duel.active || duel.phase === 'cut' || duel.phase === 'lost') ?? null;
+  }
+
+  /** 결투에서 져서 탈락했는지. 배드엔딩 화면을 띄운다(PLAN 7.6). */
+  get eliminated(): boolean {
+    return this.room.duels.some((duel) => duel.phase === 'lost');
   }
 
   /** 디버그 그리기용 Rapier 월드 */
@@ -172,6 +190,7 @@ export class Simulation {
     this.severed.push(piece);
     this.dialogue = null;
     this.sequence.start();
+    for (const duel of this.room.duels) duel.markCut();
     this.events.push('cut');
     return true;
   }
@@ -190,15 +209,18 @@ export class Simulation {
   step(input: InputState): void {
     this.holdCutKey(input);
     this.handleTalk(input);
+    this.stepDuels(input);
     const live = this.liveInput(input);
     const { tori, config } = this;
     const command = this.controller.update(live, { tori, config, grabbables: this.room.grabbables });
     tori.step(live, command);
     for (const piece of this.severed) piece.drive();
-    this.strikes.before(tori, this.objects);
+    const foes = this.room.duels.flatMap(({ target }) => (target ? [target] : []));
+    this.strikes.before(tori, this.objects, foes);
     this.physics.step();
     this.stepCount += 1;
-    this.strikes.after(this.world, tori, this.objects, config, this.stepCount);
+    this.strikes.after(this.world, tori, this.objects, config, this.stepCount, foes, this.abilities.whipPower);
+    for (const duel of this.room.duels) duel.afterStep(tori, this.state);
     // 방을 다시 만들면 지금 월드를 지우므로 스텝의 맨 끝에서 한다
     if (this.sequence.advance(FIXED_DT, config.cut.rewindSeconds)) this.finishRewind();
     // 한 프레임에 여러 스텝이 돌아도 누른 순간은 한 번만 쓴다. 스텝이 돌지 않은 프레임의 입력은 다음까지 남는다.
@@ -248,9 +270,19 @@ export class Simulation {
     this.keptGrab = { grab: input.held.grab, pointerGrab: input.held.pointerGrab };
   }
 
-  /** 대화 중과 회귀 연출 중에는 이동과 꼬리 입력을 막는다 */
+  // ---- 결투 ----
+
+  /** 결투를 한 스텝 진행한다. 쓰러져 버둥거린 게이지가 다 차면 꼬리를 자른다(PLAN 7.6의 자르기 계기). */
+  private stepDuels(input: InputState): void {
+    for (const duel of this.room.duels) {
+      if (duel.beforeStep(this.tori, input, canCut(this.state))) this.cutTail();
+    }
+  }
+
+  /** 대화 중, 회귀 연출 중, 결투에서 맞아 경직됐거나 쓰러져 있을 때는 이동과 꼬리 입력을 막는다 */
   private liveInput(input: InputState): InputState {
-    if (!this.dialogue && !this.sequence.active) return input;
+    const held = this.room.duels.some((duel) => duel.holdsTori);
+    if (!this.dialogue && !this.sequence.active && !held) return input;
     const talking = this.dialogue !== null;
     this.blockedInput.held.grab = talking && this.keptGrab.grab;
     this.blockedInput.held.pointerGrab = talking && this.keptGrab.pointerGrab;
@@ -318,11 +350,12 @@ export class Simulation {
   private build(spawn: Point): void {
     const { config, state } = this;
     this.physics = new PhysicsWorld(config);
-    this.room = new Room(this.physics, this.roomData, config, state);
+    // 남은 구간이 바뀌면 방을 다시 만들므로, 능력표도 여기서 다시 읽는다
+    this.abilities = abilitiesFor(state.sectionsLeft);
+    this.room = new Room(this.physics, this.roomData, config, state, this.abilities, (event) => this.events.push(event));
     const surroundings = { surfaceOf: (c: RAPIER.Collider) => this.room.surfaceOf(c), grabbables: this.room.grabbables };
     this.tori = new Tori(this.physics, config, spawn, surroundings, state.sectionsLeft);
-    // 남은 구간이 바뀌면 방을 다시 만들므로, 능력표도 여기서 다시 읽는다
-    this.tori.applyAbilities(abilitiesFor(state.sectionsLeft));
+    this.tori.applyAbilities(this.abilities);
     this.strikes = new Strikes();
     this.controller = createController(this.scheme);
     this.severed = [];

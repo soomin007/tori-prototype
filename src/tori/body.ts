@@ -58,6 +58,8 @@ export class Tori {
   slope = 0;
   surface: Surface = 'normal';
   probeLines: ProbeLine[] = [];
+  /** 결투에서 쓰러져 있는지. 직립 유지와 이동을 끄고 꼬리는 늘어뜨린다(PLAN 7.6). 방을 다시 만들면 풀린다. */
+  downed = false;
 
   private readonly config: GameConfig;
   private readonly world: RAPIER.World;
@@ -72,6 +74,9 @@ export class Tori {
   /** 미리 누른 점프를 기억하는 남은 시간 */
   private buffer = 0;
   private time = 0;
+  /** 버둥거릴 때 꼬리를 흔드는 남은 시간과 방향 */
+  private flail = 0;
+  private flailSide = 1;
 
   /** sections는 꼬리에 붙일 구간 수(남은 구간)다 */
   constructor(
@@ -150,6 +155,41 @@ export class Tori {
     this.tail.applyConfig();
   }
 
+  /** 몸통과 머리의 콜라이더. 결투에서 상대의 공격이 여기에 닿으면 맞은 것이다. 꼬리는 넣지 않는다(PLAN 7.6). */
+  get colliders(): readonly RAPIER.Collider[] {
+    return [this.torsoCollider, this.headCollider];
+  }
+
+  /**
+   * 맞아서 밀려난다. 몸 전체를 적어도 speed로 direction 쪽으로, lift로 위로 움직이게 한다.
+   * 부딪혀서 이미 그보다 빠르면 더 보태지 않는다. 떠오르는 동안 띄우는 힘을 잠깐 끈다.
+   */
+  knockback(direction: number, speed: number, lift: number): void {
+    const { x: vx, y: vy } = this.torso.linvel();
+    const change = { x: direction * Math.max(direction * vx, speed) - vx, y: Math.min(vy, -lift) - vy };
+    for (const body of [this.torso, this.head, ...this.tail.links.map((link) => link.body)]) {
+      body.applyImpulse({ x: body.mass() * change.x, y: body.mass() * change.y }, true);
+    }
+    if (lift > 0) {
+      this.floatOff = Math.max(this.floatOff, this.config.jump.floatOffSeconds);
+      this.grounded = false;
+    }
+  }
+
+  /** 결투에서 쓰러진다. direction은 밀려난 쪽이고, 그쪽으로 몸이 돈다. 잡고 있던 것은 놓는다. */
+  knockDown(direction: number): void {
+    this.downed = true;
+    this.grab.update(false, this.tail, this.colliders);
+    this.torso.setAngvel(this.torso.angvel() + direction * this.config.duel.downSpin, true);
+  }
+
+  /** 쓰러져 버둥거린다. 몸을 side 쪽으로 조금 돌리고 꼬리를 흔든다. 입력마다 눈에 보이게 반응한다(PLAN 7.6). */
+  struggle(side: number, twitch: number): void {
+    this.torso.applyTorqueImpulse(side * twitch, true);
+    this.flail = this.config.duel.struggleWiggleSeconds;
+    this.flailSide = side;
+  }
+
   /** 몸통과 머리의 질량 */
   get bodyMass(): number {
     return this.torso.mass() + this.head.mass();
@@ -171,6 +211,10 @@ export class Tori {
     // addForce로 준 힘은 지울 때까지 남는다
     this.torso.resetForces(true);
     this.torso.resetTorques(true);
+    if (this.downed) {
+      this.lie(command);
+      return;
+    }
 
     this.updateFacing(input.moveX);
     const hits = this.probeGround();
@@ -188,6 +232,24 @@ export class Tori {
       const brace = command.brace === undefined ? swing * this.config.tail.brace : this.strikeBrace(swing * command.brace);
       this.torso.addTorque(brace, true);
     }
+  }
+
+  /**
+   * 쓰러져 있을 때. 띄우는 힘, 직립 유지, 이동, 점프를 모두 꺼서 몸이 바닥에 쓰러진다.
+   * 꼬리는 밑동 각을 고집하지 않고 늘어지고, 버둥거리면 잠깐 흔든다.
+   */
+  private lie(command: TailCommand): void {
+    this.updateGround(this.probeGround());
+    this.flail = Math.max(0, this.flail - FIXED_DT);
+    const { duel } = this.config;
+    const span = Math.max(duel.struggleWiggleSeconds, FIXED_DT);
+    const wave = this.flail > 0 ? Math.sin((Math.PI * this.flail) / span) : 0;
+    const bend = this.flailSide * duel.struggleWiggleDeg * DEG * wave;
+    command.pose = this.tail.links.map((_, i) => (i === 0 ? this.tail.jointAngle(0) + bend : bend));
+    command.strength = this.flail > 0 ? 1 : duel.downTailStrength;
+    command.pull = null;
+    command.grab = false;
+    this.tail.drive(command, this.turn, false);
   }
 
   /**

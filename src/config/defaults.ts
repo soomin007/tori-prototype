@@ -1,3 +1,6 @@
+import { OPPONENT_DEFAULTS, OPPONENT_LABELS, OPPONENT_META } from './opponents';
+import type { OpponentGroups } from './opponents';
+
 /**
  * 모든 수치의 기본값. 기획이 정하지 않은 값은 전부 자리값이다.
  * 새 수치를 넣으면 DEFAULTS와 PARAM_META에 함께 적는다. PARAM_META의 이름과 범위가 튜닝 패널에 그대로 나온다.
@@ -17,7 +20,8 @@ export const DEG = Math.PI / 180;
 
 // ---- 튜닝 패널에서 바꾸는 값 ----
 
-export interface GameConfig {
+/** 결투 상대의 묶음(foe1 등)은 config/opponents.ts에 있다 */
+export interface GameConfig extends OpponentGroups {
   move: {
     maxSpeed: number;
     accel: number;
@@ -170,6 +174,32 @@ export interface GameConfig {
   recorder: {
     talkRange: number;
     talkHeight: number;
+  };
+  duel: {
+    toriHealth: number;
+    regenPerSecond: number;
+    startSeconds: number;
+    wallHeight: number;
+    damagePerSpeed: number;
+    maxDamage: number;
+    strikePush: number;
+    maxPush: number;
+    strikeCooldownSeconds: number;
+    hurtStaggerSeconds: number;
+    hurtInvulnSeconds: number;
+    countSeconds: number;
+    countTo: number;
+    struggleKeys: boolean;
+    struggleMouse: boolean;
+    strugglePerInput: number;
+    struggleDecay: number;
+    struggleGraceSeconds: number;
+    struggleMouseMin: number;
+    struggleTwitch: number;
+    struggleWiggleDeg: number;
+    struggleWiggleSeconds: number;
+    downSpin: number;
+    downTailStrength: number;
   };
   ground: {
     friction: number;
@@ -353,6 +383,34 @@ export const DEFAULTS: GameConfig = {
     talkRange: 1.4, // 기록관 발밑에서 토리 몸통 중심까지 가로로 이 안이면 말을 걸 수 있다
     talkHeight: 1.5, // 세로로 이 안이면 말을 걸 수 있다. 발판 위아래에 있으면 걸지 못한다
   },
+  duel: {
+    toriHealth: 100, // 토리의 체력 상한. 능력표의 maxHealth를 곱한다(PLAN 7.6)
+    regenPerSecond: 0, // 1초에 저절로 차는 체력. 비교용으로만 둔다(PLAN 7.6)
+    startSeconds: 1, // 벽이 닫힌 뒤 상대가 움직이기 시작할 때까지
+    wallHeight: 4, // 결투장 벽의 높이. 뛰어도 넘지 못한다
+    damagePerSpeed: 1.6, // 꼬리 타격 피해 = 마디 속도(m/s) × 이 값. 능력표의 whipPower를 곱한다(PLAN 7.6)
+    maxDamage: 18, // 꼬리 타격 한 번의 피해 상한
+    strikePush: 0.35, // 맞은 상대가 밀려나는 속도 = 마디 속도 × 이 값 × 상대의 넉백 배율
+    maxPush: 5, // m/s
+    strikeCooldownSeconds: 0.3, // 같은 상대를 다시 때릴 때까지. 한 번 휘두를 때 여러 마디가 닿아도 한 번만 친다
+    hurtStaggerSeconds: 0.3, // 맞은 토리의 이동과 꼬리 입력이 먹지 않는 시간(PLAN 7.6)
+    hurtInvulnSeconds: 0.5, // 맞은 토리가 다시 맞지 않는 시간(PLAN 7.6)
+    countSeconds: 1, // 심판 카운트의 숫자 하나(PLAN 7.6)
+    countTo: 10, // 이 숫자까지 세면 탈락이다(PLAN 7.6)
+    struggleKeys: true, // 좌우 이동 키를 번갈아 누르면 버둥거린다(PLAN 2.2의 [제안])
+    struggleMouse: true, // 마우스를 흔들면 버둥거린다(PLAN 2.2의 [제안])
+    strugglePerInput: 0.08, // 한 번 버둥거릴 때 차는 게이지(가득 차면 1). 13번이면 찬다
+    struggleDecay: 0.2, // 가만히 있으면 1초에 주는 게이지
+    struggleGraceSeconds: 0.4, // 버둥거린 뒤 게이지가 줄기 시작할 때까지
+    struggleMouseMin: 0.15, // m. 마우스가 한쪽으로 이만큼 움직인 뒤 방향이 바뀌어야 한 번으로 센다. 손 떨림은 세지 않는다
+    struggleTwitch: 0.6, // N·m·s. 한 번 버둥거릴 때 몸에 주는 회전 충격. 첫 입력부터 눈에 보이게 반응한다(PLAN 7.6)
+    struggleWiggleDeg: 25, // 한 번 버둥거릴 때 꼬리 관절마다 흔드는 폭
+    struggleWiggleSeconds: 0.2, // 한 번 버둥거릴 때 꼬리를 흔드는 시간
+    downSpin: 4, // rad/s. 쓰러질 때 밀려난 쪽으로 몸이 도는 속도
+    downTailStrength: 0.15, // 쓰러져 있을 때 꼬리 모터 세기 배율. 작으면 꼬리가 늘어진다
+  },
+  // 튜닝 패널에서 결투 묶음 바로 뒤에 나오도록 여기에 둔다
+  ...OPPONENT_DEFAULTS,
   ground: {
     friction: 0.8, // 물건과 꼬리가 바닥에 닿을 때의 마찰. 토리의 이동에는 쓰지 않는다
     slipperyAccel: 0.2, // PLAN 7.2. 미끄러운 바닥에서 가속에 곱한다
@@ -517,6 +575,31 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'cut.wriggleTorque': { label: '꿈틀 힘 상한 (N·m)', min: 0.2, max: 20, step: 0.1 },
   'recorder.talkRange': { label: '말 거는 가로 거리 (m)', min: 0.3, max: 4, step: 0.05 },
   'recorder.talkHeight': { label: '말 거는 세로 거리 (m)', min: 0.3, max: 4, step: 0.05 },
+  'duel.toriHealth': { label: '토리 체력', min: 1, max: 500, step: 1, rebuild: true },
+  'duel.regenPerSecond': { label: '체력 회복 (1초에)', min: 0, max: 20, step: 0.5 },
+  'duel.startSeconds': { label: '싸움 시작까지 (초)', min: 0, max: 5, step: 0.1 },
+  'duel.wallHeight': { label: '결투장 벽 높이 (m)', min: 1, max: 10, step: 0.1, rebuild: true },
+  'duel.damagePerSpeed': { label: '꼬리 피해 (속도당)', min: 0, max: 10, step: 0.1 },
+  'duel.maxDamage': { label: '꼬리 피해 상한', min: 1, max: 100, step: 1 },
+  'duel.strikePush': { label: '꼬리로 밀기 (속도당)', min: 0, max: 2, step: 0.05 },
+  'duel.maxPush': { label: '꼬리로 밀기 상한 (m/s)', min: 0, max: 15, step: 0.1 },
+  'duel.strikeCooldownSeconds': { label: '다시 때릴 때까지 (초)', min: 0.05, max: 1.5, step: 0.05 },
+  'duel.hurtStaggerSeconds': { label: '맞은 뒤 경직 (초)', min: 0, max: 2, step: 0.05 },
+  'duel.hurtInvulnSeconds': { label: '맞은 뒤 무적 (초)', min: 0, max: 3, step: 0.05 },
+  'duel.countSeconds': { label: '카운트 한 번 (초)', min: 0.2, max: 3, step: 0.1 },
+  'duel.countTo': { label: '카운트 끝 숫자', min: 1, max: 20, step: 1 },
+  'duel.struggleKeys': { label: '키로 버둥거리기' },
+  'duel.struggleMouse': { label: '마우스로 버둥거리기' },
+  'duel.strugglePerInput': { label: '버둥거림 한 번에 차는 양', min: 0.01, max: 0.5, step: 0.01 },
+  'duel.struggleDecay': { label: '게이지 줄기 (1초에)', min: 0, max: 2, step: 0.05 },
+  'duel.struggleGraceSeconds': { label: '줄기 전 기다림 (초)', min: 0, max: 2, step: 0.05 },
+  'duel.struggleMouseMin': { label: '마우스 흔들기 폭 (m)', min: 0.02, max: 1, step: 0.01 },
+  'duel.struggleTwitch': { label: '버둥거림 꿈틀 세기', min: 0, max: 3, step: 0.05 },
+  'duel.struggleWiggleDeg': { label: '버둥거림 꼬리 폭 (도)', min: 0, max: 35, step: 1 },
+  'duel.struggleWiggleSeconds': { label: '버둥거림 꼬리 시간 (초)', min: 0.05, max: 1, step: 0.01 },
+  'duel.downSpin': { label: '쓰러질 때 도는 속도 (rad/s)', min: 0, max: 15, step: 0.1 },
+  'duel.downTailStrength': { label: '쓰러진 꼬리 모터 배율', min: 0, max: 1, step: 0.01 },
+  ...OPPONENT_META,
   'ground.friction': { label: '바닥 마찰 (물건, 꼬리)', min: 0, max: 2, step: 0.01 },
   'ground.slipperyAccel': { label: '미끄러운 바닥 가속 배율', min: 0.02, max: 1, step: 0.02 },
   'ground.slipperyDecel': { label: '미끄러운 바닥 감속 배율', min: 0.02, max: 1, step: 0.02 },
@@ -550,6 +633,8 @@ export const GROUP_LABELS: Record<keyof GameConfig, string> = {
   hit: '휘둘러 치기',
   cut: '꼬리 자르기와 회귀',
   recorder: '기록관',
+  duel: '결투',
+  ...OPPONENT_LABELS,
   ground: '바닥',
   props: '물건',
   camera: '카메라',
