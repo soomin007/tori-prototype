@@ -153,6 +153,20 @@ export interface GameConfig {
     pushMass: number;
     cooldownSeconds: number;
   };
+  cut: {
+    holdSeconds: number;
+    rewindSeconds: number;
+    wriggleDeg: number;
+    wriggleHz: number;
+    wriggleLag: number;
+    wriggleStiffness: number;
+    wriggleDampingSeconds: number;
+    wriggleTorque: number;
+  };
+  recorder: {
+    talkRange: number;
+    talkHeight: number;
+  };
   ground: {
     friction: number;
     slipperyAccel: number;
@@ -317,6 +331,20 @@ export const DEFAULTS: GameConfig = {
     pushMass: 1, // kg. 이보다 무거운 물건은 무거운 만큼 덜 튕긴다
     cooldownSeconds: 0.25, // 같은 물건을 다시 칠 때까지
   },
+  cut: {
+    holdSeconds: 1, // 디버그 키 Q를 이만큼 누르고 있으면 자른다(PLAN 7.10)
+    rewindSeconds: 2, // 잘린 꼬리가 꿈틀거린 뒤 회귀할 때까지(PLAN 7.4)
+    wriggleDeg: 30, // 잘린 꼬리의 관절마다 흔드는 폭. 관절 제한(35도) 안이어야 한다
+    wriggleHz: 4, // 잘린 도마뱀붙이 꼬리는 1초에 4~8번 움직인다(Higham과 Russell 2010의 보도 자료)
+    wriggleLag: 1.2, // 관절 하나마다 물결이 늦어지는 각(라디안). 크면 꼬리가 S자로 휜다
+    wriggleStiffness: 15, // N·m/rad
+    wriggleDampingSeconds: 0.01, // 감쇠를 강성으로 나눈 값. 0.05면 감쇠가 흔들림을 붙잡아 폭이 절반으로 준다
+    wriggleTorque: 4, // N·m. 관절 하나의 힘 상한. 이 값에서 2초 동안 바닥을 0.4m쯤 꿈틀거리며 움직인다
+  },
+  recorder: {
+    talkRange: 1.4, // 기록관 발밑에서 토리 몸통 중심까지 가로로 이 안이면 말을 걸 수 있다
+    talkHeight: 1.5, // 세로로 이 안이면 말을 걸 수 있다. 발판 위아래에 있으면 걸지 못한다
+  },
   ground: {
     friction: 0.8, // 물건과 꼬리가 바닥에 닿을 때의 마찰. 토리의 이동에는 쓰지 않는다
     slipperyAccel: 0.2, // PLAN 7.2. 미끄러운 바닥에서 가속에 곱한다
@@ -467,6 +495,16 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'hit.lift': { label: '위로 튕기기', min: 0, max: 2, step: 0.05 },
   'hit.pushMass': { label: '다 튕기는 무게 (kg)', min: 0.1, max: 5, step: 0.1 },
   'hit.cooldownSeconds': { label: '다시 칠 때까지 (초)', min: 0.05, max: 1, step: 0.05 },
+  'cut.holdSeconds': { label: 'Q 누르는 시간 (초)', min: 0.1, max: 3, step: 0.1 },
+  'cut.rewindSeconds': { label: '회귀 전 연출 (초)', min: 0.2, max: 5, step: 0.1 },
+  'cut.wriggleDeg': { label: '꿈틀 폭 (도)', min: 0, max: 35, step: 1 },
+  'cut.wriggleHz': { label: '꿈틀 빠르기 (Hz)', min: 0.5, max: 10, step: 0.1 },
+  'cut.wriggleLag': { label: '꿈틀 물결 늦어짐 (rad)', min: 0, max: 3, step: 0.05 },
+  'cut.wriggleStiffness': { label: '꿈틀 모터 강성 (N·m/rad)', min: 1, max: 60, step: 1 },
+  'cut.wriggleDampingSeconds': { label: '꿈틀 모터 감쇠 (초)', min: 0, max: 0.3, step: 0.01 },
+  'cut.wriggleTorque': { label: '꿈틀 힘 상한 (N·m)', min: 0.2, max: 20, step: 0.1 },
+  'recorder.talkRange': { label: '말 거는 가로 거리 (m)', min: 0.3, max: 4, step: 0.05 },
+  'recorder.talkHeight': { label: '말 거는 세로 거리 (m)', min: 0.3, max: 4, step: 0.05 },
   'ground.friction': { label: '바닥 마찰 (물건, 꼬리)', min: 0, max: 2, step: 0.01 },
   'ground.slipperyAccel': { label: '미끄러운 바닥 가속 배율', min: 0.02, max: 1, step: 0.02 },
   'ground.slipperyDecel': { label: '미끄러운 바닥 감속 배율', min: 0.02, max: 1, step: 0.02 },
@@ -498,6 +536,8 @@ export const GROUP_LABELS: Record<keyof GameConfig, string> = {
   auto: 'B 방식 (자동)',
   grab: '잡기와 걸기',
   hit: '휘둘러 치기',
+  cut: '꼬리 자르기와 회귀',
+  recorder: '기록관',
   ground: '바닥',
   props: '물건',
   camera: '카메라',

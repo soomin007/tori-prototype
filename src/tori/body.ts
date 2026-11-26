@@ -1,4 +1,5 @@
 import RAPIER from '@dimforge/rapier2d-compat';
+import type { Abilities } from '../config/abilities';
 import { DEG, FIXED_DT } from '../config/defaults';
 import type { GameConfig } from '../config/defaults';
 import { collisionGroups, groundProbeGroups } from '../physics/groups';
@@ -8,7 +9,7 @@ import type { Point, Surface } from '../rooms/rooms';
 import type { InputState } from '../sim/inputState';
 import { TailGrab } from './grab';
 import type { Grabbable } from './grab';
-import { Tail } from './tail';
+import { SeveredTail, Tail } from './tail';
 import type { TailCommand } from './tail';
 
 /** 디버그 그리기용 레이캐스트 한 줄 */
@@ -44,9 +45,9 @@ export class Tori {
   readonly head: RAPIER.RigidBody;
   readonly tail: Tail;
   readonly grab: TailGrab;
-  /** 능력표의 balance(M3). 직립 세기에 곱한다. */
+  /** 능력표의 balance. 직립 세기에 곱한다. */
   balance = 1;
-  /** 능력표의 잡기(M3). 꺼져 있으면 꼬리 끝만 꼼지락거린다. */
+  /** 능력표의 canGrab. 꺼져 있으면 꼬리 끝만 꼼지락거린다. */
   canGrab = true;
   /** 바라보는 쪽. 오른쪽 1, 왼쪽 -1 */
   facing: 1 | -1 = 1;
@@ -72,7 +73,14 @@ export class Tori {
   private buffer = 0;
   private time = 0;
 
-  constructor(physics: PhysicsWorld, config: GameConfig, spawn: Point, surroundings: Surroundings) {
+  /** sections는 꼬리에 붙일 구간 수(남은 구간)다 */
+  constructor(
+    physics: PhysicsWorld,
+    config: GameConfig,
+    spawn: Point,
+    surroundings: Surroundings,
+    sections = config.tail.sections,
+  ) {
     this.config = config;
     this.world = physics.raw;
     this.surroundings = surroundings;
@@ -106,9 +114,27 @@ export class Tori {
 
     physics.track(this.torso);
     physics.track(this.head);
-    this.tail = new Tail(physics, config, this.torso, this.turn);
+    this.tail = new Tail(physics, config, this.torso, this.turn, sections);
     this.grab = new TailGrab(physics, config, surroundings.grabbables);
     this.applyConfig();
+  }
+
+  /** 능력표 한 줄에서 이미 자리가 있는 값을 반영한다(PLAN 7.5) */
+  applyAbilities({ balance, canGrab }: Abilities): void {
+    this.balance = balance;
+    this.canGrab = canGrab;
+  }
+
+  /**
+   * 꼬리 끝 구간을 떼어 낸다. 잡기를 먼저 정리해, 걸린 가지는 놓고 들고 있던 물건은 잘린 꼬리에 남긴다.
+   * 자를 구간이 없으면 null이다.
+   */
+  cutTail(): SeveredTail | null {
+    if (this.tail.sectionCount === 0) return null;
+    const carried = this.grab.detachForCut();
+    const links = this.tail.sever();
+    if (!links) return null;
+    return new SeveredTail(this.config, links, this.turn >= 0 ? 1 : -1, carried);
   }
 
   /** 실행 중에 바뀐 값 가운데 매 스텝 읽지 않는 것을 반영한다 */

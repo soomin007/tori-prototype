@@ -67,6 +67,21 @@ export class TailGrab {
     this.settleReleased(tail, body);
   }
 
+  /**
+   * 꼬리를 자르기 직전에 부른다(PLAN 7.3). 가지에 걸려 있었으면 rope 관절까지 지우고 놓는다.
+   * 들고 있던 물건은 관절을 지우지 않고 넘겨준다. 그 관절은 끝 마디에 붙어 있어 잘린 꼬리와 함께 떨어진다.
+   */
+  detachForCut(): Grabbable | null {
+    if (!this.hold) return null;
+    if (this.hold.target.fixed) {
+      this.release();
+      return null;
+    }
+    const { target } = this.hold;
+    this.hold = null;
+    return target;
+  }
+
   /** 밑동을 옮길 때 들고 있는 물건도 같이 옮긴다 */
   shift({ x: dx, y: dy }: Point): void {
     if (!this.hold || this.hold.target.fixed) return;

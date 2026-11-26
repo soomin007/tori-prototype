@@ -5,6 +5,7 @@ import { collisionGroups } from '../physics/groups';
 import { angleDiff, toWorld } from '../physics/world';
 import type { PhysicsWorld } from '../physics/world';
 import type { Point } from '../rooms/rooms';
+import type { Grabbable } from './grab';
 
 /** 꼬리 마디 하나. 마디의 -y 방향이 꼬리 끝을 향한다. 각도 0이면 위를 보고 -90도면 왼쪽을 본다. */
 export interface TailLink {
@@ -32,26 +33,48 @@ export interface TailCommand {
 /** 밑동의 목표 각은 모터 목표 각이 접히는 180도에서 이만큼 떨어뜨린다(known-issues 3번) */
 const MAX_TARGET = 175 * DEG;
 
-/** 꼬리 사슬. 마디는 회전 관절로 잇고 관절마다 모터가 목표 자세를 쫓는다. */
+/**
+ * 꼬리 사슬. 마디는 회전 관절로 잇고 관절마다 모터가 목표 자세를 쫓는다.
+ * 남은 구간 수만큼의 구간으로 만들고, 살아 있는 동안에도 끝 구간을 떼어 낼 수 있다(sever).
+ * 마디 수를 쓰는 곳(IK, 조작 방식, 받치는 힘, 타격 판정, 그리기)은 모두 links를 그때그때 읽는다.
+ */
 export class Tail {
-  readonly links: readonly TailLink[];
   /** 디버그 그리기용. 모터에 마지막으로 넣은 목표 자세다. */
   targetPose: number[] = [];
+  private readonly chain: TailLink[];
   private readonly config: GameConfig;
   private readonly world: RAPIER.World;
   private readonly torso: RAPIER.RigidBody;
 
-  constructor(physics: PhysicsWorld, config: GameConfig, torso: RAPIER.RigidBody, turn: number) {
+  /** sections는 밑동 뒤에 붙일 구간 수(남은 구간)다 */
+  constructor(physics: PhysicsWorld, config: GameConfig, torso: RAPIER.RigidBody, turn: number, sections: number) {
     this.config = config;
     this.world = physics.raw;
     this.torso = torso;
-    this.links = this.build(turn);
+    this.chain = this.build(turn, sections);
     this.applyConfig();
-    for (const { body } of this.links) physics.track(body);
+    for (const { body } of this.chain) physics.track(body);
+  }
+
+  /** 밑동부터 끝까지의 마디 */
+  get links(): readonly TailLink[] {
+    return this.chain;
+  }
+
+  /** 붙어 있는 구간 수. 밑동만 남으면 0이다. */
+  get sectionCount(): number {
+    return this.tipLink.section;
+  }
+
+  /** 끝 구간이 붙은 관절의 자리. 자를 구간이 없으면 null이다. */
+  get cutPoint(): Point | null {
+    const first = this.firstOfTipSection();
+    if (first === null) return null;
+    return toWorld(this.chain[first].body, { x: 0, y: this.config.tail.linkLength / 2 });
   }
 
   get length(): number {
-    return this.links.length * this.config.tail.linkLength;
+    return this.chain.length * this.config.tail.linkLength;
   }
 
   get mass(): number {
@@ -152,6 +175,25 @@ export class Tail {
     for (const { body } of this.links) body.applyImpulse({ x: 0, y: body.mass() * change }, true);
   }
 
+  /**
+   * 끝 구간을 떼어 내고 떼어 낸 마디를 준다. 떼어 낸 마디끼리는 이어진 채로 남는다. 자를 구간이 없으면 null이다.
+   * 잡기는 먼저 정리해야 한다(Tori.cutTail). 떼어 낸 첫 마디의 joint는 지운 관절이라 다시 쓰지 않는다.
+   */
+  sever(): TailLink[] | null {
+    const first = this.firstOfTipSection();
+    if (first === null) return null;
+    const piece = this.chain.splice(first);
+    this.world.removeImpulseJoint(piece[0].joint, true);
+    this.targetPose = this.targetPose.slice(0, first);
+    return piece;
+  }
+
+  /** 끝 구간의 첫 마디 번호. 밑동만 남았으면 null이다. */
+  private firstOfTipSection(): number | null {
+    const section = this.sectionCount;
+    return section === 0 ? null : this.chain.findIndex((link) => link.section === section);
+  }
+
   /** 물리 스텝 직전에 한 번 부른다. hooked는 끝이 가지에 걸려 있는지다. 밑동 모터가 낼 토크의 어림값을 준다. */
   drive(command: TailCommand, turn: number, hooked: boolean): number {
     const { tail, grab, mouse } = this.config;
@@ -237,7 +279,7 @@ export class Tail {
     return { x: -hipX * turn, y: -hipY };
   }
 
-  private build(turn: number): TailLink[] {
+  private build(turn: number, sections: number): TailLink[] {
     const { tail } = this.config;
     const half = tail.linkLength / 2;
     // 처음에는 뒤로 곧게 뻗은 모습이다
@@ -246,7 +288,7 @@ export class Tail {
     const hip = this.hip(turn);
 
     const links: TailLink[] = [];
-    const count = tail.baseLinks + tail.sections * tail.linksPerSection;
+    const count = tail.baseLinks + Math.max(0, Math.min(sections, tail.sections)) * tail.linksPerSection;
     for (let i = 0; i < count; i += 1) {
       const section = i < tail.baseLinks ? 0 : 1 + Math.floor((i - tail.baseLinks) / tail.linksPerSection);
       const radius = sectionThickness(this.config, section) / 2;
@@ -274,6 +316,43 @@ export class Tail {
       links.push({ body, collider, joint, section, radius });
     }
     return links;
+  }
+}
+
+/**
+ * 떼어 낸 꼬리 구간. 마디끼리 이어진 채 떨어져, 관절 모터에 사인파 목표를 넣어 꿈틀거린다(PLAN 7.3).
+ * 충돌 그룹은 꼬리 그대로라 토리의 몸과 남은 꼬리와는 부딪히지 않는다. 회귀하며 방을 다시 만들 때 함께 사라진다.
+ */
+export class SeveredTail {
+  readonly links: readonly TailLink[];
+  /** 잘린 순간 토리가 보던 쪽(오른쪽 1, 왼쪽 -1). 그림을 뒤집는 데 쓴다. */
+  readonly side: 1 | -1;
+  /** 꼬리 끝에 들고 있다가 함께 떨어지는 물건 */
+  readonly carried: Grabbable | null;
+  private readonly config: GameConfig;
+  private time = 0;
+
+  constructor(config: GameConfig, links: readonly TailLink[], side: 1 | -1, carried: Grabbable | null) {
+    this.config = config;
+    this.links = links;
+    this.side = side;
+    this.carried = carried;
+    // 끝만 당기기(A 방식)로 준 힘은 지울 때까지 남는다
+    for (const { body } of links) body.resetForces(true);
+  }
+
+  /** 물리 스텝 직전에 한 번 부른다 */
+  drive(): void {
+    const { wriggleDeg, wriggleHz, wriggleLag, wriggleStiffness, wriggleDampingSeconds, wriggleTorque } = this.config.cut;
+    this.time += FIXED_DT;
+    const phase = this.time * wriggleHz * 2 * Math.PI;
+    // 0번 마디의 관절은 자를 때 지웠다
+    for (let i = 1; i < this.links.length; i += 1) {
+      const { joint } = this.links[i];
+      const target = wriggleDeg * DEG * Math.sin(phase - i * wriggleLag);
+      joint.configureMotorPosition(target, wriggleStiffness, wriggleStiffness * wriggleDampingSeconds);
+      joint.setMotorMaxForce(wriggleTorque);
+    }
   }
 }
 
