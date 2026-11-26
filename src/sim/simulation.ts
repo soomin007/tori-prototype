@@ -282,6 +282,7 @@ export class Simulation {
     this.roomData = roomData;
     this.state.room = roomData.number;
     const stand = roomData.recorders.find(({ id }) => id === this.state.recorder)?.stand;
+    // 스텝 안이므로 stepper는 비우지 않는다(known-issues 17번)
     this.rebuildWorld(stand ?? roomData.spawn);
     // 회귀 횟수로 걸러 기록관이 나타나지 않으면 대사도 없다
     const recorder = this.room.recorder(this.state.recorder);

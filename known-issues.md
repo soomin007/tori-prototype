@@ -46,6 +46,7 @@
 - 원인: 앞에 있지 않은 탭은 `requestAnimationFrame`이 0번 불린다. Phaser는 이것으로 돌기 때문에 시작도 하지 않는다.
   `document.visibilityState`는 이때도 `visible`이라 구분에 쓸 수 없다. 켜 둔 개발 서버 밑에서 `node_modules`를 지워도 비슷하게 멈춘다.
 - 규칙: 코드를 의심하기 전에 탭을 앞으로 옮기고(`tabs_select`) `requestAnimationFrame` 횟수를 센다. `npm ci`는 개발 서버를 끄고 돌린다.
+  앱 안의 브라우저 창이 숨겨져 있을 때(`tabs_context`가 hidden이라고 알려 준다)도 횟수가 0이다(2026-11-26). 이때는 사용자의 Chrome(Claude in Chrome)으로 확인용 주소를 연다.
 
 ## 8. 돌아설 때 몸통이 크게 돈다 (관절 앵커만 옮기면 솔버가 매달린 바디를 낚아챈다)
 
@@ -106,3 +107,11 @@
 - 증상: `deploy` 워크플로가 `Test timed out in 5000ms`로 실패한다. `deploy-dev`는 success로 보여 배포된 줄 알기 쉽다.
 - 원인: 물리를 오래 돌리는 테스트(설정값 양 끝)는 여기서 4초쯤 걸리고, 배포하는 컴퓨터는 두 배쯤 느리다. Vitest의 기본 제한은 5초다.
 - 규칙: 기본 제한을 30초로 두고(`vite.config.ts`), 오래 도는 테스트에는 120초를 적는다. 배포를 확인할 때는 `deploy-dev`가 아니라 `main`에서 도는 `deploy`의 결과를 본다.
+
+## 17. 회귀한 뒤 예전 바디를 읽으면 "null pointer passed to rust" 오류가 난다 (방을 다시 만들면 월드를 통째로 지운다)
+
+- 증상: 잘린 꼬리의 마디를 붙잡아 두고 스텝을 돌리며 재던 테스트가 2초째에 이 오류로 멈췄다.
+- 원인: 회귀 연출(`cut.rewindSeconds`)이 끝나는 스텝에서 `Simulation`이 물리 월드를 지우고 방을 새로 만든다. 그 전에 받아 둔 바디, 콜라이더, 관절은 모두 지워진 것이다.
+  R, 방 이동, 튜닝 패널의 다시 만들기 항목도 같다. 자를 때 지운 관절(떼어 낸 첫 마디의 `joint`)도 다시 쓰면 같은 오류가 난다.
+- 규칙: 바디를 스텝 너머로 들고 있지 말고 `sim.tori`, `sim.objects`, `sim.severed`에서 그때그때 읽는다. 그리기 쪽은 `sim.generation`이 바뀌면 그림을 새로 만든다.
+  스텝 안에서 방을 다시 만들 때는 `FixedStepper`를 비우지 않는다. 돌고 있는 `advance` 안에서 비우면 남은 시간이 음수가 되어 그림이 한 스텝 뒤로 튄다.
