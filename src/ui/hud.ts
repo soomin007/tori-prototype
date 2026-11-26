@@ -5,6 +5,14 @@ import { COMMON_KEYS, keyList, SCHEME_GUIDES, SYSTEM_KEYS } from './controlsGuid
 import { button as makeButton, element } from './dom';
 
 const TOAST_MS = 2500;
+/** 탈락했을 때의 글. 엔딩 글은 기획이 정하므로 자리표시다(CLAUDE.md의 반드시 지킬 것 1번). */
+const BAD_ENDING_TEXT = '배드엔딩 글 1';
+
+/** 전광판에 띄울 것. 체력은 0~1이다. 앞이 토리, 뒤가 상대다. */
+export interface Scoreboard {
+  numbers: readonly [string, string];
+  health: readonly [number, number];
+}
 
 type ToggleName = 'debug' | 'panel' | 'help';
 
@@ -27,7 +35,14 @@ export class Hud {
   private readonly dialogue = element('div', 'dialogue');
   private readonly speaker = element('p', 'dialogue-speaker');
   private readonly line = element('p', 'dialogue-line');
+  private readonly board = element('div', 'scoreboard');
+  private readonly boardNumbers = [element('p', 'score-number'), element('p', 'score-number')] as const;
+  private readonly boardFills = [element('div', 'score-fill'), element('div', 'score-fill')] as const;
+  private readonly count = element('div', 'referee-count');
+  private readonly ending = element('div', 'bad-ending');
   private shownDialogue: Dialogue | null = null;
+  private shownBoard = '';
+  private shownCount: number | null = null;
   private toastTimer = 0;
 
   constructor(root: HTMLElement, commands: SystemCommands) {
@@ -75,7 +90,64 @@ export class Hud {
     this.dialogue.setAttribute('aria-live', 'polite');
     this.dialogue.hidden = true;
 
-    root.replaceChildren(bar, this.help, this.pausePanel, this.dialogue, this.toast, this.copyBox, this.status);
+    // 전광판은 두 참가자의 번호와 체력바만 보여 준다. 문장은 넣지 않는다(PLAN 7.6).
+    this.boardNumbers.forEach((number, i) => {
+      const side = element('div', 'score');
+      const bar = element('div', 'score-bar');
+      bar.append(this.boardFills[i]);
+      side.append(number, bar);
+      this.board.append(side);
+    });
+    this.board.hidden = true;
+    // 심판 카운트는 숫자 하나만 크게 띄운다(PLAN 7.6)
+    this.count.hidden = true;
+    this.count.setAttribute('aria-live', 'assertive');
+    this.ending.append(element('p', '', BAD_ENDING_TEXT), makeButton('처음부터', 'hud-button', () => commands.restartRoom()));
+    this.ending.hidden = true;
+
+    root.replaceChildren(
+      bar,
+      this.board,
+      this.count,
+      this.help,
+      this.dialogue,
+      this.ending,
+      this.pausePanel,
+      this.toast,
+      this.copyBox,
+      this.status,
+    );
+  }
+
+  /** 결투 중에만 화면 위쪽에 전광판을 띄운다. 프레임마다 불러도 바뀔 때만 고친다. */
+  showScoreboard(board: Scoreboard | null): void {
+    const key = board ? `${board.numbers.join('|')}|${board.health.map((h) => h.toFixed(3)).join('|')}` : '';
+    if (key === this.shownBoard) return;
+    this.shownBoard = key;
+    this.board.hidden = board === null;
+    if (!board) return;
+    board.numbers.forEach((number, i) => {
+      this.boardNumbers[i].textContent = number;
+      this.boardFills[i].style.width = `${Math.round(Math.min(1, Math.max(0, board.health[i])) * 1000) / 10}%`;
+    });
+  }
+
+  /** 쓰러져 있는 동안 심판이 세는 숫자. 숫자가 바뀔 때마다 다시 튀어나온다. */
+  showCount(count: number | null): void {
+    if (count === this.shownCount) return;
+    this.shownCount = count;
+    this.count.hidden = count === null;
+    if (count === null) return;
+    this.count.textContent = String(count);
+    this.count.classList.remove('pop');
+    void this.count.offsetWidth;
+    this.count.classList.add('pop');
+  }
+
+  /** 탈락했을 때의 배드엔딩 화면(PLAN 7.6). 3단계 전까지는 자리표시 글과 처음부터 단추만 둔다. */
+  showEnding(shown: boolean): void {
+    if (this.ending.hidden !== shown) return;
+    this.ending.hidden = !shown;
   }
 
   /** 기록관의 대사를 띄우거나 닫는다. 프레임마다 불러도 바뀔 때만 고친다. */
