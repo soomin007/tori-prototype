@@ -30,6 +30,8 @@ export interface TailCommand {
   grab: boolean;
   /** 다리가 꼬리의 반동을 버티는 비율. 없으면 tail.brace를 쓴다. B 방식이 칠 때 더 세게 버틴다. */
   brace?: number;
+  /** 꼬리 무게를 버티지 않고 늘어뜨린다. 결투에서 쓰러졌을 때 쓴다. */
+  limp?: boolean;
 }
 
 /** 밑동의 목표 각은 모터 목표 각이 접히는 180도에서 이만큼 떨어뜨린다(known-issues 3번) */
@@ -206,7 +208,7 @@ export class Tail {
     const limit = tail.jointLimitDeg * DEG;
     const root = this.rootRange(turn);
     // 가지에 걸렸거나 끝만 당길 때는 꼬리가 제 무게를 버티지 않는다
-    const sag = hooked || command.pull ? null : this.gravityTorques();
+    const sag = hooked || command.pull || command.limp ? null : this.gravityTorques();
     this.targetPose = this.links.map((_, i) =>
       i === 0 ? clamp(command.pose[0] ?? 0, root.min, root.max) : clamp(command.pose[i] ?? 0, -limit, limit),
     );

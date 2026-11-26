@@ -3,7 +3,7 @@ import type { Abilities } from '../config/abilities';
 import { DEG, FIXED_DT } from '../config/defaults';
 import type { GameConfig } from '../config/defaults';
 import { collisionGroups, groundProbeGroups } from '../physics/groups';
-import { lerpAngle } from '../physics/world';
+import { angleDiff, lerpAngle } from '../physics/world';
 import type { PhysicsWorld } from '../physics/world';
 import type { Point, Surface } from '../rooms/rooms';
 import type { InputState } from '../sim/inputState';
@@ -235,13 +235,16 @@ export class Tori {
   }
 
   /**
-   * 쓰러져 있을 때. 띄우는 힘, 직립 유지, 이동, 점프를 모두 꺼서 몸이 바닥에 쓰러진다.
-   * 꼬리는 밑동 각을 고집하지 않고 늘어지고, 버둥거리면 잠깐 흔든다.
+   * 쓰러져 있을 때. 띄우는 힘, 직립 유지, 이동, 점프를 모두 끄고, 직립 유지 대신 배를 위로 한 자세를 쫓는 약한 토크를 준다.
+   * 쓰러질 때 밀려난 쪽으로 돌던 방향 그대로 뒤집힌다. 꼬리는 무게를 버티지 않고 늘어지고, 버둥거리면 잠깐 흔든다.
    */
   private lie(command: TailCommand): void {
     this.updateGround(this.probeGround());
     this.flail = Math.max(0, this.flail - FIXED_DT);
-    const { duel } = this.config;
+    const { duel, upright } = this.config;
+    const maxDamping = (this.torso.principalInertia() * MAX_DAMPING_PER_STEP) / FIXED_DT;
+    const flip = angleDiff(this.torso.rotation(), Math.PI);
+    this.torso.addTorque(-duel.downTorque * flip - Math.min(upright.damping, maxDamping) * this.torso.angvel(), true);
     const span = Math.max(duel.struggleWiggleSeconds, FIXED_DT);
     const wave = this.flail > 0 ? Math.sin((Math.PI * this.flail) / span) : 0;
     const bend = this.flailSide * duel.struggleWiggleDeg * DEG * wave;
@@ -249,6 +252,7 @@ export class Tori {
     command.strength = this.flail > 0 ? 1 : duel.downTailStrength;
     command.pull = null;
     command.grab = false;
+    command.limp = true;
     this.tail.drive(command, this.turn, false);
   }
 

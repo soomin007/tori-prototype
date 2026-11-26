@@ -199,6 +199,7 @@ export interface GameConfig extends OpponentGroups {
     struggleWiggleDeg: number;
     struggleWiggleSeconds: number;
     downSpin: number;
+    downTorque: number;
     downTailStrength: number;
   };
   ground: {
@@ -407,6 +408,7 @@ export const DEFAULTS: GameConfig = {
     struggleWiggleDeg: 25, // 한 번 버둥거릴 때 꼬리 관절마다 흔드는 폭
     struggleWiggleSeconds: 0.2, // 한 번 버둥거릴 때 꼬리를 흔드는 시간
     downSpin: 4, // rad/s. 쓰러질 때 밀려난 쪽으로 몸이 도는 속도
+    downTorque: 40, // N·m/rad. 쓰러진 몸을 배가 위로 가게 뒤집어 두는 세기. 0이면 엎드린 채 쓰러진다
     downTailStrength: 0.15, // 쓰러져 있을 때 꼬리 모터 세기 배율. 작으면 꼬리가 늘어진다
   },
   // 튜닝 패널에서 결투 묶음 바로 뒤에 나오도록 여기에 둔다
@@ -598,6 +600,7 @@ export const PARAM_META: Record<string, ParamMeta> = {
   'duel.struggleWiggleDeg': { label: '버둥거림 꼬리 폭 (도)', min: 0, max: 35, step: 1 },
   'duel.struggleWiggleSeconds': { label: '버둥거림 꼬리 시간 (초)', min: 0.05, max: 1, step: 0.01 },
   'duel.downSpin': { label: '쓰러질 때 도는 속도 (rad/s)', min: 0, max: 15, step: 0.1 },
+  'duel.downTorque': { label: '쓰러지면 뒤집기 (N·m/rad)', min: 0, max: 150, step: 1 },
   'duel.downTailStrength': { label: '쓰러진 꼬리 모터 배율', min: 0, max: 1, step: 0.01 },
   ...OPPONENT_META,
   'ground.friction': { label: '바닥 마찰 (물건, 꼬리)', min: 0, max: 2, step: 0.01 },
