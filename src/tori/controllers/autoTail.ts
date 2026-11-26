@@ -93,7 +93,9 @@ export class AutoTail implements TailController {
     const { reachFactor, behindPenalty, switchMargin } = config.auto;
     const hip = tori.tail.hip(tori.turn);
     const center = tori.torso.translation();
-    const reach = tori.tail.length * reachFactor;
+    // 자르지 않은 꼬리의 길이로 잰다. 짧아진 꼬리의 길이로 재면 달려가며 뛸 때 미리 뻗을 시간이 모자라 가지를 놓친다.
+    const { baseLinks, sections, linksPerSection, linkLength } = config.tail;
+    const reach = (baseLinks + sections * linksPerSection) * linkLength * reachFactor;
     const ahead = (target: Grabbable): boolean => (target.body.translation().x - center.x) * tori.facing >= 0;
 
     const inReach = grabbables

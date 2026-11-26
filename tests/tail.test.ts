@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { cloneConfig, DEFAULTS, DEG, FIXED_DT, PARAM_META, setParam } from '../src/config/defaults';
 import type { ParamValue } from '../src/config/defaults';
 import type { Scheme } from '../src/config/presets';
-import { initPhysics } from '../src/physics/world';
+import { initPhysics, toWorld } from '../src/physics/world';
 import { roomByNumber } from '../src/rooms/rooms';
 import type { BranchData, Point, RoomData } from '../src/rooms/rooms';
 import { createInputState } from '../src/sim/inputState';
@@ -92,6 +92,20 @@ class Run {
 
 function length({ x, y }: Point): number {
   return Math.hypot(x, y);
+}
+
+/** 가장 크게 벌어진 관절 하나의 거리(m) */
+function widestJointGap({ sim }: Run): number {
+  const { tail, turn } = sim.tori;
+  const half = DEFAULTS.tail.linkLength / 2;
+  return tail.links.reduce((widest, { body }, i) => {
+    const from = i === 0 ? tail.hip(turn) : toWorld(tail.links[i - 1].body, { x: 0, y: -half });
+    return Math.max(widest, length(subtract(toWorld(body, { x: 0, y: half }), from)));
+  }, 0);
+}
+
+function subtract(a: Point, b: Point): Point {
+  return { x: a.x - b.x, y: a.y - b.y };
 }
 
 function branchAt(x: number, y: number): BranchData {
@@ -474,6 +488,36 @@ describe('짧아진 꼬리', () => {
       expect(run.maxTilt).toBeLessThan(45);
       expect(run.maxGap).toBeLessThan(0.05);
     });
+
+    it(`남은 구간 ${sectionsLeft}: 방 3의 낮은 가지에 밑에서 뛰어도, 달려가며 뛰어도 걸 수 있다`, () => {
+      const data = roomByNumber(3);
+      const [branch] = data.branches;
+      for (const scheme of ['A', 'B'] as const) {
+        for (const jumpX of [null, 12.2, 12.5, 12.8]) {
+          const name = `${scheme} ${jumpX ?? '밑에서'}`;
+          const spawn = jumpX === null ? { x: branch.x, y: 6.2 } : { x: 10, y: 5.5 };
+          const run = new Run(scheme, { roomData: { ...data, recorders: [], boxes: [], spawn }, settle: 0.5, sectionsLeft });
+          run.input.pointerActive = true;
+          run.input.pointer = { x: branch.x, y: branch.y };
+          run.input.held.grab = true;
+          run.input.held.pointerGrab = true;
+          let jumped = jumpX === null;
+          run.input.pressed.jump = jumped;
+          let hooked = false;
+          let widest = 0;
+          run.seconds(2.5, () => {
+            if (!jumped && run.center.x >= (jumpX as number)) run.input.pressed.jump = jumped = true;
+            if (jumpX !== null) run.input.moveX = run.center.x < branch.x ? 1 : 0;
+            hooked ||= run.sim.tori.grab.hooked;
+            widest = Math.max(widest, widestJointGap(run));
+          });
+          expect(hooked, name).toBe(true);
+          // 거는 순간에는 꼬리가 잠깐 늘어난다(M2에서 잰 달려가며 걸 때의 합계는 꼬리 길이의 6%).
+          // 이웃한 마디 그림은 굵기만큼 겹치므로, 관절 하나가 끝 굵기의 절반보다 덜 벌어지면 틈이 보이지 않는다.
+          expect(widest, name).toBeLessThan(DEFAULTS.tail.tipThickness / 2);
+        }
+      }
+    }, 60_000);
 
     it(`남은 구간 ${sectionsLeft}: A 방식으로 커서를 앞뒤로 휘둘러도 꼬리가 벌어지지 않는다`, () => {
       const run = new Run('A', { sectionsLeft });
